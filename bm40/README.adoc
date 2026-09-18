@@ -1,0 +1,2027 @@
+:revdate: 2026-09-17
+:author: Peter Kenny
+// There is no actual :env-codeberg: but this gets close (it is like backend-html5 'bare')
+ifdef::backend-html5[]
+ifndef::docname[]
+:env-codeberg:
+endif::docname[]
+endif::backend-html5[]
+// Used for kbd (NB: Those don't render in Codeberg, which just outputs as inline code)
+:experimental:
+// ToC attributes default, with levels overridden later where applicable
+:toc: left
+:toclevels: 3
+:icons: font
+// Unicode characters to use for admonition captions except when going to PDF
+ifndef::backend-pdf[]
+:important-caption: ❗
+:tip-caption: 💡
+:note-caption: ℹ
+:caution-caption: 🔥
+:warning-caption: ⚠
+:white-check-mark: ✓
+endif::backend-pdf[]
+ifdef::backend-pdf[]
+:toclevels: 2
+endif::backend-pdf[]
+// Code highlighting
+:source-highlighter: rouge
+// Non-HTML5/non-GitHub only directives, including overrides
+ifndef::backend-html5,env-github[]
+:toc-title: Contents
+endif::[]
+// HTML5 and/or GitHub only directives, including overrides
+ifdef::backend-html5,env-github[]
+:toc-title:
+:toclevels: 1
+endif::[]
+// GitHub only directives (Note: Source highlighting is n/a for Codeberg)
+ifdef::env-github[]
+:rouge-style: github
+endif::[]
+// Autofit code blocks when going to PDF
+:autofit-option:
+
+= KPRepublic BM40 Hotswap RGB rev2: QMK firmware and Vial setup
+
+ifdef::backend-pdf[]
+<<<
+endif::backend-pdf[]
+
+[#overallaimsandrequirements]
+== Overall aims and requirements
+
+[cols="3,9"]
+|===
+^.^s|Standardisation <.^| For the most part, standardise to a common layout and
+functionality across my two BM40s, a CSTC40, a Chosfox Geonix Rev.2.5, and a
+Planck Ez.
+^.^s|Per-key RGB <.^| Enabling this is not something that can be set using Vial
+(unlike ZSA’s Oryx, which makes it possible though its GUI with ZSA’s keyboards
+like the Planck Ez).
+|===
+
+[#keyboardphotos]
+== Keyboard photos
+
+There are six layers, all with per-key lighting.  They are shown here with
+“Direct Control” set, so the non-defined keys (such as the alpha characters on
+Layer 0) are unlit.
+
+// A blank line to add space between content is needed sometimes in Codeberg
+ifdef::env-codeberg[&#x00A0; ]
+
+.Layer&#x00A0;0&#x00A0;(Base)
+[img-photo0]
+image:https://i.postimg.cc/Hn82pmxQ/BM40-Layer0.jpg[Base,width=500]
+
+.Layer&#x00A0;1&#x00A0;(Lower)
+[img-photo1]
+image:https://i.postimg.cc/0jKf8vQY/BM40-Layer1.jpg[Lower,width=500]
+
+.Layer&#x00A0;2&#x00A0;(Raise)
+[img-photo2]
+image:https://i.postimg.cc/BbPgq36D/BM40-Layer2.jpg[Raise,width=500]
+
+.Layer&#x00A0;3&#x00A0;(BOOT only)
+[img-photo3]
+image:https://i.postimg.cc/rsRJ8Tmx/BM40-Layer3.jpg[Boot,width=500]
+
+.Layer&#x00A0;4&#x00A0;(Numpad)
+[img-photo4]
+image:https://i.postimg.cc/0jKf8vQS/BM40-Layer4.jpg[Numpad,width=500]
+
+.Layer&#x00A0;5&#x00A0;(Mouse and Adjust)
+[img-photo5]
+image:https://i.postimg.cc/MHfDWwTQ/BM40-Layer5.jpg[MouseAdjust,width=500]
+
+[#updatingtheqmkfirmware]
+== Updating the QMK firmware
+
+[CAUTION]
+====
+This documentation was prepared in the context of the operating system being
+Windows 11 and using the QMK MSYS application (latest version:
+https://msys.qmk.fm/[https://msys.qmk.fm]); specific version details:
+
+* QMK CLI: 1.2.0
+* qmk_firmware commit: dd43959ae5c08d8a28d38a1acf7b04e86b14a344 (2026-07-26
+17:15:39 -0600) (as bundled with the QMK MSYS installer at time of install,
+i.e., not updated with `git pull`)
+* Toolchain (avr-gcc): 15.2.0 (crosstool-NG 1.27.0.82_7f9d704 -
+qmk/qmk_toolchains @ a55a2b0)
+====
+
+[IMPORTANT]
+====
+*To reproduce this exact setup, in*
+*`~/qmk_firmware/keyboards/kprepublic/bm40hsrgb`, rename the `rev2`*
+*directory (e.g., to `rev2_stock`), then copy in* *my `rev2` directory.*
+
+ifdef::env-codeberg[&#x00A0; ]
+
+Beyond this, and aside from backwards-incompatible upstream changes that could
+occur to QMK/Vial core, then
+`qmk clean && qmk compile -kb kprepublic/bm40hsrgb/rev2 -km kennypete`
+should just work.
+====
+
+[#workingwithalimitedfirmwaresizeceiling]
+=== Working with a limited firmware size ceiling
+
+A critical issue with the BM40 is that, as shipped, the default build’s `.hex`
+file leaves very little free space – so much so that, if it is left in its
+“stock” setup, adding per-key RGB would exceed the 28,672&#x00A0;bytes
+available on the BM40’s ATmega32U4 MCU.
+
+ifdef::env-codeberg[&#x00A0; ]
+
+Specifically, the compiled default Vial build
+(`keyboards/kprepublic/bm40hsrgb/rev2/keymaps/vial`) leaves 2,428 bytes of free
+space.  As the memory cost of per-key, brightness-reactive RGB lighting is not
+trivial, other feature(s) must be disabled.  This is especially the case
+because I also want `VIALRGB_ENABLE` and `TAP_DANCE_ENABLE`, both of which are
+not enabled in the stock.
+
+ifdef::env-codeberg[&#x00A0; ]
+
+Fortunately, I do not use/want several features, which are inherently included
+in the stock build, and which collectively “free” around 3 kB:
+
+* CAPS_WORD_ENABLE
+* GRAVE_ESC_ENABLE
+* LAYER_LOCK_ENABLE
+* MAGIC_ENABLE
+* REPEAT_KEY_ENABLE
+
+Those are discussed in detail at
+<<keymapskennypeterulesmkamendments,keymaps/kennypete/rules.mk amendments>>.
+
+ifdef::env-codeberg[&#x00A0; ]
+
+A further &gt;1&#x00A0;kB is saved by purging most of the stock’s RGB Matrix
+animations, which is a recommended https://docs.qmk.fm/squeezing_avr[squeezing]
+technique.
+
+NOTE: It is also critical not to enable
+https://get.vial.today/docs/firmware-size.html#qmk-settings[`QMK_SETTINGS`],
+which would add around 5 kB, an impracticable cost.  Vial itself defaults
+`QMK_SETTINGS` to “yes” (in `builddefs/build_vial.mk`) both the stock and this
+setup explicitly override that back to “no”.
+
+[NOTE]
+====
+Unlike the Geonix (1152-byte EEPROM), the BM40’s ATmega32U4 has only 1024 bytes
+to work with.  Further, combo/key-override entries share one pool with QMK’s
+enforced 100-byte reservation for macros.  Working through the actual address
+arithmetic (`quantum/nvm/eeprom/nvm_dynamic_keymap.c`): the fixed cost of seven
+layers, nine tap dances, and the VIA/eeconfig header leaves exactly 120
+bytesfootnote:[The usable range, `DYNAMIC_KEYMAP_EEPROM_MAX_ADDR`, defaults to `TOTAL_EEPROM_BYTE_COUNT - 1` when not overridden (confirmed in `quantum/nvm/eeprom/nvm_dynamic_keymap.c`).  For the ATmega32U4, `TOTAL_EEPROM_BYTE_COUNT` is a hardcoded 1024 (per-chip, in `platforms/eeprom.h`), not a user-set `EEPROM_SIZE`, which only applies to other EEPROM driver types.  This gives 1023, one less than 1024, due to zero indexing.]
+free before that reservation.  That is a combined ceiling of 12 combo {plus}
+key-override entries.  My `6 + 6` sits precisely at that limit, confirmed by a
+clean compile with no headroom left in that specific pool.  Any further combo
+or override would need either a larger EEPROM, or trimming elsewhere (most
+effectively layers, at &#x007E;96 bytes each is far costlier per unit than
+combo/key-override’s 10 bytes each).
+====
+
+[#startingpoint]
+=== Starting point
+
+This board builds from mainline qmk_firmware.  My work here primarily is
+configuration and delivering feature-parity.  That is, bringing an
+already-current, working source in line with my other boards, rather than
+fixing defects in it.
+
+[#featureslist]
+=== Features list
+
+The final `kennypete` keymap build sits at 26220/28672 (91%, 2452 bytes free),
+remarkably close to the stock build.  The big difference is removal of the
+features and animations noted in
+<<workingwithalimitedfirmwaresizeceiling,Working with limited flash>>,
+providing enough space for my desired additions.
+
+ifdef::env-codeberg[&#x00A0; ]
+
+The **stock rev2_vial** enabled features list is:
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[source,shell-session]
+----
+[~/qmk_firmware] $ grep -oP '(?<=-D)[[:upper:]_]+_ENABLE' .build/obj_kprepublic_bm40hsrgb_rev2_vial/cflags.txt | sort -u | column
+BOOTMAGIC_ENABLE        GRAVE_ESC_ENABLE        RAW_ENABLE              TRI_LAYER_ENABLE
+CAPS_WORD_ENABLE        LAYER_LOCK_ENABLE       REPEAT_KEY_ENABLE       VIA_ENABLE
+COMBO_ENABLE            LTO_ENABLE              RGB_MATRIX_ENABLE       VIAL_ENABLE
+DYNAMIC_KEYMAP_ENABLE   MAGIC_ENABLE            SEND_STRING_ENABLE
+EEPROM_ENABLE           MOUSE_ENABLE            SHARED_EP_ENABLE
+EXTRAKEY_ENABLE         MOUSEKEY_ENABLE         SPACE_CADET_ENABLE
+----
+
+These are enabled in various ways, including (directly or indirectly) in:
+
+* `~/qmk_firmware/builddefs/generic_features.mk` (`GRAVE_ESC_ENABLE`,
+`MAGIC_ENABLE`, `SEND_STRING_ENABLE`, and `SPACE_CADET_ENABLE`)
+* `~/qmk_firmware/builddefs/build_vial.mk`
+* `~/qmk_firmware/keyboards/kprepublic/bm40hsrgb/rev2/keyboard.json`
+* `~/qmk_firmware/keyboards/kprepublic/bm40hsrgb/rev2/keymaps/vial/rules.mk`
+
+The **final rev2_kennypete** updated enabled features list is:
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[source,shell-session]
+----
+[~/qmk_firmware] $ grep -oP '(?<=-D)[[:upper:]_]+_ENABLE' .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/cflags.txt | sort -u | column
+BOOTMAGIC_ENABLE        KEY_OVERRIDE_ENABLE     RGB_MATRIX_ENABLE       TRI_LAYER_ENABLE
+COMBO_ENABLE            LTO_ENABLE              SEND_STRING_ENABLE      VIA_ENABLE
+DYNAMIC_KEYMAP_ENABLE   MOUSE_ENABLE            SHARED_EP_ENABLE        VIAL_ENABLE
+EEPROM_ENABLE           MOUSEKEY_ENABLE         SPACE_CADET_ENABLE      VIALRGB_ENABLE
+EXTRAKEY_ENABLE         RAW_ENABLE              TAP_DANCE_ENABLE
+----
+
+Some of these features are mandatory:
+
+1. `EEPROM_ENABLE` is compiled in by default on any board, given
+`EEPROM_DRIVER` defaults to vendor (not none) unless explicitly overridden –
+confirmed at `qmk_firmware/builddefs/common_features.mk` (lines 172-178).
+2. `qmk_firmware/builddefs/common_features.mk` also dictates other mandatory
+settings for any keyboard with `VIA_ENABLE`, which Vial requires.  Those
+settings are `BOOTMAGIC_ENABLE`, `DYNAMIC_KEYMAP_ENABLE`, `RAW_ENABLE`,
+`TRI_LAYER_ENABLE`, and (indirectly) `SEND_STRING_ENABLE`.
+
+Other settings are discussed at
+<<keyboardjsonamendments,keyboard.json amendments>> (i.e., `MOUSEKEY_ENABLE`,
+`EXTRAKEY_ENABLE`, and `RGB_MATRIX_ENABLE`, plus their knock-on features,
+`MOUSE_ENABLE` and `SHARED_EP_ENABLE`), and the remainder are discussed at
+<<keymapskennypeterulesmkamendments,keymaps/kennypete/rules.mk amendments>>.
+
+[#qmkfilesamendments]
+=== QMK files’ amendments
+
+The following files provide the default QMK/Vial setup for the BM40 rev2:
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[source,shell-session]
+----
+[~/qmk_firmware/keyboards/kprepublic/bm40hsrgb/rev2]$ shopt -s globstar extglob
+[~/qmk_firmware/keyboards/kprepublic/bm40hsrgb/rev2]$ ls -R --width=15 **/*.@(c|json|h|mk)
+config.h
+keyboard.json
+keymaps/vial/config.h
+keymaps/vial/keymap.c
+keymaps/vial/rules.mk
+keymaps/vial/vial.json
+rev2.c
+----
+
+* All files in the `vial` directory plus the `keyboard.json` are amended,
+as explained below.
+* The `vial` directory is renamed `kennypete`.
+* The final, compilation output is included below –
+see <<compilation,Compilation>>.
+* The resulting compiled file is `kprepublic_bm40hsrgb_rev2_kennypete.hex`,
+which is flashed to the board using QMK MSYS – see <<flashing,Flashing>>.
+
+The `vial` folder is renamed for a couple of reasons.  First, its contents are
+extensively updated.  Second, albeit incidentally, when named `vial`, the `qmk
+lint` check fails, whereas when it is named `kennypete`:
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[source,shell-session]
+----
+[~/qmk_firmware] $ qmk lint -kb kprepublic/bm40hsrgb/rev2 -km kennypete
+Ψ Lint check passed!
+----
+
+[#keyboardjsonamendments]
+==== keyboard.json amendments
+
+The file <<filerev2keyboardjson,keyboard.json>> defines the board itself, i.e.,
+matrix pins, USB IDs, which QMK features are available by default, and the RGB
+Matrix hardware layout.  Anything set here is the fallback every keymap on this
+board inherits (unless it overrides it at the keymap level).  Changes made:
+
+* `rgblight` (incorrectly, `true`), `tri_layer`, and `build.lto`
+are removed because, as `qmk info -kb kprepublic/bm40hsrgb/rev2 -km vial`
+revealed, they are specified already in `rules.mk`, and the latter “wins”.
+* The `ws2812` pin block is removed because the
+BM40’s `rgb_matrix.driver` is `is31fl3733`, an I2C-based chip that has no use
+for a WS2812 pin declaration.
+* `rgb_matrix.animations` list is reduced from 38 available animations
+down to just three (`cycle_all`, `cycle_left_right`, and `hue_pendulum`).  Each
+unused effect comes with a memory cost, regardless of whether it is ever
+selected/wanted, so this is an easy trade of too many animation choices for
+flash headroom.  And as I have no desire for any more than a few animations,
+usually preferring “Direct Control” and my per-key solid colours.
+
+[NOTE]
+====
+This file’s `features` block also sets `mousekey`, `extrakey`, and `rgb_matrix`
+to true, which are not just incidental for my setup because the:
+
+* mouse keys on Layer 5 depend on `mousekey` being enabled,
+* the media/volume row requires `extrakey`, and
+* the per-key RGB system needs `rgb_matrix`.
+
+These three enabled settings then cascade (forced by QMK core code), setting:
+
+* `MOUSEKEY_ENABLE = true`, which sets `MOUSE_ENABLE` as enabled (in
+`builddefs/common_features.mk`)
+* `MOUSE_ENABLE` and `EXTRAKEY_ENABLE` each independently force
+`SHARED_EP_ENABLE` on (in `tmk_core/protocol.mk`).
+====
+
+[#keymapskennypeteconfighamendments]
+==== keymaps/kennypete/config.h amendments
+
+The `keymaps/{keymap}/config.h` contains settings specific to the keymap, i.e.,
+Vial’s unique board identifier and unlock key combination, how many layers
+Vial’s dynamic keymap supports, and so on.  The changes made to it are:
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[cols="4,7"]
+|===
+^.^m|DYNAMIC_KEYMAP_LAYER_COUNT
+<.^|Set to `7` because I currently use six layers, and want one extra for
+future optionality.
+^.^m|DYNAMIC_KEYMAP_MACRO_COUNT
+<.^|Set to `3` because I only use one macro (and even that is trivial).  So, I
+do not expect either to need, or to add, more.
+^.^m|VIAL_COMBO_ENTRIES
+<.^|Set to `6`.  I have three currently and may add a few more at some point.
+So, providing for another three is enough.
+^.^m|VIAL_KEY_OVERRIDE_ENTRIES
+<.^| Set to `6`; I have three currently and may find the need for some more,
+though three should be enough.
+^.^m|VIAL_TAP_DANCE_ENTRIES
+<.^| Set to `9`; I use seven, though am unlikely to add many more, with current
+usage focused on layer movement and locking things like Num and Scoll lock.
+^.^m|NO_ACTION_ONESHOT
+<.^| This is a space saver delivered with no cost to me given I do not use one
+shot modifiers.
+^.^m|MOUSEKEY&#x002A;
+<.^| Several settings are added, which deliver my preferences for the mouse
+keys’ timings.
+^.^m|ENABLE_RGB_MATRIX_&#x002A;
+<.^| All of these are removed.  The stock file has a large number disabled with
+`undef` (which is redundant because only the ones I want enabled and disabled
+are included in <<filerev2keyboardjson,keyboard.json>>).
+|===
+
+The final, amended file is <<filerev2keymapskennypeteconfigh,config.h>>.
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[NOTE]
+====
+The `MOUSEKEY*` settings _could_ be set by making them available within Vial.
+However, doing so would come with a very large memory cost.  That is because it
+would require setting `QMK_SETTINGS = yes` in `rules.mk`.  The problem with
+that is it costs around 5 kB, which is impracticable on the BM40.  So, with
+only mouse keys’ timings being the only things I want to change, those are set
+specifically here (and not in `rev2/config.h`, which remains unchanged, because
+it contains “facts” about the board itself, not my preferences).
+====
+
+[#keymapskennypetekeymapcamendments]
+==== keymaps/kennypete/keymap.c amendments
+
+As its filename suggests, <<filerev2keymapskennypetekeymapc,keymap.c>> contains
+QMK’s keymap for the board when it is compiled.  However, because I use Vial
+for storing the final working layout (i.e., dynamically in the keyboard’s
+EEPROM), the `keymaps[]` array in `keymap.c` is only ever used as a temporal,
+initially-flashed state prior to reloading my complete keymap using a saved
+`.vil` file.  I like this approach because I detest the commonly weird setups
+usually delivered with stock `keymap.c` files.  As it is a fallback too (should
+the EEPROM state ever be wiped) the file is updated from the default as
+follows:
+
+* *Layers*: These are changed from the default by amending
+layer 0 (`_BASE`) a little to mostly match the final Vial setup’s arrangement:
+** Layer 1 (`_SYMBOLS`) is limited to symbols, arrow keys on HJKL, kbd:[F1] to
+kbd:[F12], and kbd:[&#x005F;], kbd:[&#x002B;], kbd:[{], kbd:[}],
+kbd:[&#x007C;], and kbd:[.].
+** Layer 2 (`_NUMBERS`) is limited to numbers, arrow keys on HJKL, plus
+kbd:[-], kbd:[=], kbd:[&#x005B;], kbd:[&#x005D;], and kbd:[&#x002B;].
+** Layer 3 (`_ADJUST`) is a bootloader key-only layer.
+** There is neither layer 4 nor layer 5 defined because they are superfluous
+for the basic, default state.  Those two layers are set only in the Vial setup,
+which is loaded after flashing the firmware.
++
+[NOTE]
+====
+The result is a much more congruous default-to-final layout.  This is useful,
+for me at least, because it means common typing tasks before the Vial file is
+loaded can be performed.  For example, the kbd:[Ctrl] key is at R3C0 (where I
+always want it) whereas, in KPRepublic’s original keymap that position is
+`RGB_TOG` (_WTH?_).  There is some inherent deception here, though.  Per-key
+colour-wise, many keys on layers 1 and 2 are `KC_NO` rather than their final
+state.  That has no meaningful consequence, however.
+====
+
+* *Per-key colours*: The function `rgb_matrix_indicators_user()`,
+together with support functions `apply_hsv_table()` and `apply_off_table()`,
+check which layer is currently active and, for every key that should show a
+fixed colour, looks up that key’s physical LED and sets it directly.  In doing
+so, that overrides whatever the board’s selected background effect would be
+otherwise.
+** _Colours_ are stored as compact hue/saturation pairs (i.e., not full RGB
+triples) using 14 `#define HS_*` definitions.  Consequently, those are added to
+flash memory (rather than EEPROM), and row/column positions are packed into a
+single byte each via a small `RC(row, col)` macro, which keeps the memory cost
+low.
+** _Brightness_ is not stored per colour, deliberately.  It is read live from
+the board’s current brightness setting every time a colour is drawn, which is
+what makes every one of these fixed colours brighten, responding to
+user-adjustment (Bright{plus}, `RGB_VAI`) and a key override to reduce
+brightness when shifted.  The exception to this is Layer 3’s `QK_BOOT` key,
+which, along with the held Lower-Upper keys, is intentionally hard-coded to a
+fixed, non-scaling red.  That is appropriate given the `QK_BOOT` key’s use
+case, with the colour a kind of “safety indicator”, always visible regardless
+of the general brightness setting.
++
+NOTE: The final presentation of this RGB per-key setup is shown in the six
+photos at <<keyboardphotos,Keyboard photos>>.
+
+[#keymapskennypeterulesmkamendments]
+==== keymaps/kennypete/rules.mk amendments
+
+The <<filerev2keymapskennypeterulesmk,rules.mk>> file controls which QMK
+features get compiled into the firmware (except when overridden at a higher
+level, which can include QMK determinations, not just keyboard-specific ones).
+The BM40’s default file only sets `VIA_ENABLE`, `VIAL_ENABLE`, and `LTO_ENABLE`
+to “yes” and `RGBLIGHT_ENABLE`, `TAP_DANCE_ENABLE`, `KEY_OVERRIDE_ENABLE`, and
+`QMK_SETTINGS` to “no”.
+
+ifdef::env-codeberg[&#x00A0; ]
+
+Some of these, plus the added and changed entries are listed in the following
+table.  Also included is reasoning and space saving information for “no”
+settings which were changed from “yes” in the stock build.  The space
+differences were identified by individually re-enabling and comparing the size
+differences between compilations when a particular feature is enabled rather
+than versus disabled.  (_NB: The sizes are not cumulative, so should be treated
+only as indicative of the space saved._)
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[cols="3,1,8"]
+|===
+^.^|Setting ^.^|yes/no ^.^|Details and Rationale
+
+^.^m|AVR_USE_MINIMAL_PRINTF
+^.^m|yes
+<.^|Includes smaller implementations from AVRs libc, and I found no issue
+using this, saving &#x007E;400 bytes.
+^.^m|COMBO_ENABLE
+^.^m|yes
+<.^|I find some <<combostab,combos>> useful so this is worth the space cost.
+The Vial’s `builddefs/build_vial.mk` defaults this to enabled; the stock
+`rules.mk` is silent on it, but I make it explicitly “yes”.
+^.^m|KEY_OVERRIDE_ENABLE
+^.^m| yes
+<.^| When  enabled, this is used to remap specific modifier{plus}key
+combinations to a different output.  This can be used to halve the number of
+keys occupied for the things like Vol+/-, allowing you to share the same key
+with Shift going the opposite way, for example.  So, I find that a useful
+feature.  The Vial’s `builddefs/build_vial.mk` defaults this to enabled; the
+stock `rules.mk` does not disable it whereas I do.  (From testing it cost 1,668
+bytes.)
+^.^m|LTO_ENABLE
+^.^m|yes
+<.^| “This will cause the final step to take longer, but should get you a
+smaller compiled size.” –
+https://docs.qmk.fm/squeezing_avr#rules-mk-settings[Squeezing the most out of AVR].
+It works fine on the BM40 – _NB: it doesn’t with all boards_ – so this is an
+obvious setting to enable.
+^.^m|SPACE_CADET_ENABLE
+^.^m|yes
+<.^| I could get rid of this and just add one more tap dance because the only
+thing I use it for is the Right Shift/Enter quantum key.
+^.^m|VIALRGB_ENABLE
+^.^m|yes
+<.^| This enables Vial’s “Lighting” tab (effect / colour / brightness / speed
+picker).  It consumes only around 450&#x00A0;bytes and enables a GUI to
+interactively find and tune the final combination of key lighting settings.
+^.^m|CAPS_WORD_ENABLE
+^.^m|no
+<.^| I dislike this feature, which would be used to provide a temporary
+capitalised state until a terminating key is pressed.  The Vial’s
+`builddefs/build_vial.mk` defaults this to enabled; the stock `rules.mk` does
+not disable it whereas I do.  (Saved 586&#x00A0;bytes.)
+^.^m|GRAVE_ESC_ENABLE
+^.^m|no
+<.^| This is not applicable for me because I have no need to make the grave key
+behave as Esc when pressed.  (Saved a modest 92&#x00A0;bytes.)
+^.^m|LAYER_LOCK_ENABLE
+^.^m|no
+<.^|I considered this as an option for keeping layer 5 on without holding, but
+ultimately the use of `TD(2)` handles that fine, perhaps even better.  So, with
+no need for locking any (other) layer(s) with a distinct key, it is disabled.
+The Vial’s `builddefs/build_vial.mk` defaults this to enabled; the stock
+`rules.mk` does not disable it whereas I do.  (Saved 330&#x00A0;bytes.)
+^.^m|MAGIC_ENABLE
+^.^m|no
+<.^|Because I have no need for dual-layout switching, GUI on/off, and other
+things that this would enable, it isn’t.  (Saved 488&#x00A0;bytes.)
+^.^m|REPEAT_KEY_ENABLE
+^.^m|no
+<.^| If enabled, this is used to provide repeat key optionality, though unlike
+`KEY_OVERRIDE_ENABLE`, I’ve never found need for it.  The Vial’s
+`builddefs/build_vial.mk` defaults this to enabled; the stock `rules.mk` does
+not disable it whereas I do.  (Saved 1,310&#x00A0;bytes.)
+|===
+
+[#keymapskennypetevialjsonamendments]
+==== keymaps/kennypete/vial.json amendments
+
+The file <<filerev2keymapskennypetevialjson,vial.json>> is Vial’s descriptor
+for the board, including physical key layout, matrix dimensions, and it also
+determines which optional Vial-specific GUI features to expose.  The change
+made to the file are to align it with the CSTC40’s file, which is optimal on
+two counts.  Consequently:
+
+1. The following VIA-only
+metadatafootnote:[“`name`, `vendorId`, `productId`: while these options are required by VIA, Vial does not need them. You do not have to add them, and even if you do, their contents will not be used.” - https://get.vial.today/docs/porting-to-via.html#2-create-a-json-containing-the-full-keyboard-definition]
+is removed (also noting, incidentally, the `productId` is incorrect
+regardless):
++
+[source,json]
+----
+    "name": "bm40v2",
+    "vendorId": "0x4B50",
+    "productId": "0x1141",
+----
+
+2. `"lighting": ["qmk_lighting"],` is changed to:
++
+[source,json]
+----
+    "lighting": "vialrgb",
+----
+
+This is a separate setting to <<filerev2keymapskennypeterulesmk,rules.mk>>’s
+`VIALRGB_ENABLE = yes`, which compiles the capability into the firmware.  The
+Vial application only renders the “Lighting” tab if this descriptor also
+explicitly declares which lighting protocol to use.  Without both the
+`VIALRGB_ENABLE` setting and this change to the `"lighting"` line, the Lighting
+tab does not appear.
+
+[#vialsetup]
+== Vial setup
+
+[#keymaptab]
+=== Keymap tab
+
+[#layer0base]
+==== Layer 0 (Base)
+
+image:https://i.postimg.cc/Znb1H2h4/all-layer0.jpg[Vial_L0,width=535]
+
+* This layer is mostly QWERTY, though has the following distinct features:
++
+[cols="3,5,5,5"]
+|===
+|Key | On tap | On hold |On double tap
+
+s|R3C1: `TD(3)`
+|kbd:[Gui]
+|kbd:[Gui]
+|kbd:[Gui]{plus}kbd:[E]
+s|R3C3: `TD(2)`
+|Turns on Layer 0
+|Turns on Layer 5
+|Turns on Layer 4
+s|R3C8
+|kbd:[Home]
+|kbd:[Meh] (i.e., kbd:[Shift]{plus}kbd:[Ctrl]{plus}kbd:[Alt])
+| 
+s|R3C9
+|`Mouse Wheel Down`
+|kbd:[Hyper] (i.e., kbd:[Shift]{plus}kbd:[Ctrl]{plus}kbd:[Alt]{plus}kbd:[Gui])
+| 
+s|R3C10
+|`Mouse Wheel Up`
+|kbd:[Gui]
+| 
+s|R3C11
+|kbd:[End]
+|kbd:[Ctrl]
+| 
+|===
+
+[#layer1lower]
+==== Layer 1 (Lower)
+
+image:https://i.postimg.cc/D0vt6HKf/all-layer1.jpg[Vial_L1,width=535]
+
+* This layer contains symbols and kbd:[Del] on the top row.  The remaining,
+less typical things, are:
+** The “L” from R1C0 to R3C2 (which is replicated on layer 2) does double duty:
++
+[cols="3,5,5,5"]
+|===
+|Key | On tap | On hold |On double tap
+
+s|R1C0 `TD(4)`
+| 
+| 
+|kbd:[Caps Lock]
+s|R2C0 `TD(5)`
+|kbd:[Shift]
+|kbd:[Shift]
+|kbd:[Num Lock]
+s|R3C0 `TD(6)`
+|kbd:[Ctrl]
+|kbd:[Ctrl]
+|kbd:[Scroll Lock]
+s|R3C1
+|kbd:[Menu]
+|kbd:[GUI]
+| 
+s|R3C2
+|kbd:[Insert]
+|kbd:[Alt]
+| 
+|===
+** The 2U key is `LCS` (kbd:[Ctrl]{plus}kbd:[Shift]) kbd:[Space], which is a
+typical word processing application (Writer/Word) non-breaking space shortcut.
+** R3C9 `TD(0)` is `Mouse Wheel Down` when tapped, kbd:[Page Down] when double
+tapped.
+** R3C10 `TD(1)`, is `Mouse Wheel Up` when tapped, kbd:[Page Up] when double
+tapped.
+
+[#layer2raise]
+==== Layer 2 (Raise)
+
+image:https://i.postimg.cc/cCxVh2Nx/all-layer2.jpg[Vial_L2,width=535]
+
+* This layer’s top row is backtick and the digit keys.
+R1C10, R1C11, and R2C8 to R2C10 have the unshifted versions of kbd:[-],
+kbd:[=], kbd:[&#x005B;], kbd:[&#x005D;], and kbd:[&#x005C;].  Specific,
+significant features:
+** The same group of five keys as on layer 1 at the “L” from
+<<layer1lower,R1C0 to R3C2>>.
+** The kbd:[Ctrl]-modified kbd:[F1] to kbd:[F12] keys, which are used to
+provide more options at the OS and application level because, at the OS level
+especially, a control modified function at/below kbd:[F12], although rare, will
+be recognised.  (Conversely, although kbd:[F13] to kbd:[F24] function keys look
+like a good idea, often they aren’t recognised.)
+** The 2U key, which has `LCS` (kbd:[Ctrl]{plus}kbd:[Shift]) kbd:[F12].  This
+is a Vim-targeted key, which is mapped (in my Vim `.vimrc`, for Command-line
+and Insert modes) to the non-breaking space (U{plus}00A0, decimal 160) with:
++
+[source,vim]
+----
+cnoremap <S-C-F12> <Char-160>
+inoremap <S-C-F12> <Char-160>
+----
+
+[#layer3bootloaderonly]
+==== Layer 3 (Bootloader only)
+
+image:https://i.postimg.cc/8cZx0411/bm40-cstc40-layer3.jpg[Vial_L3,width=535]
+
+Intentionally, this is almost an empty layer.  The reason is driven by my
+Planck Ez.  It has a mandatory “Adjust” layer, which is layer 3.  Leveraging
+that, given it is sometimes awkward to hold those keys together as well as
+strike another key, where it _is_ useful is when you have something(s) that you
+want to be difficult to access (or will rarely want to use, which is where it
+is utilised on my Geonix Rev.2.5 for battery indicator and input
+selection/indication).  So, it is retained, but only with `QK_BOOT` at R0C4,
+turning what I may otherwise consider an annoyance into a feature.
+
+[#layer4numpad]
+==== Layer 4 (Numpad)
+
+image:https://i.postimg.cc/Vvf3gpcY/all-layer4.jpg[Vial_L4,width=535]
+
+* This number pad layer is accessed from either layer 0 or layer 5 with a
+double tap of R3C3.  Returning to layer 0 is achieved with a tap of the same
+key (which behaves identically, being the transparent key to `TD(2)`).  So,
+this layer, and layer 5, are different in that they are “on” indefinitely
+whereas layers 1, 2, and 3 are active only momentarily while the Lower and/or
+Raise key(s) are held.
++
+[NOTE]
+====
+A physical 5-row keyboard is needed to mimic something closer to a “normal”
+number pad, so this is a bespoke pad.  That said, the per-key RGB, combined
+with the nub on kbd:[5] (located where the QWERTY “J” is at R1C6), makes it
+similar enough.  The only macro on this board, `M0`, is on the 2U key.  It
+delivers two zeros (sometimes seen on number pads).
+====
+* The “WASD” keys are used to provide a cursor movement option given my usual,
+preferred, “HJKL” are otherwise occupied, and
+* Being right-handed, for me a number pad needs to be on the RHS to make sense.
+
+
+[#layer5adjust]
+==== Layer 5 (“Adjust”)
+
+image:https://i.postimg.cc/nrF62gt9/all-layer5.jpg[Vial_L5,width=535]
+
+* This is the “real” adjustment layer. It is accessed from either layer 0 or
+layer 4 by holding R3C3.  Returning to layer 0 is achieved with a tap of the
+same key (which behaves identically, being the transparent key to `TD(2)`).
+Points of note:
+** Many positions, including R0C0 to R0C9, are intentionally `KC_NO`, either
+for future use or as helpful separators when looking at the backlighting.
+** Everything else broadly is self-explanatory.
+
+[#macrostab]
+=== Macros tab
+
+There is only one macro.  It is `M0`, which simply sends two zeros.
+
+[#lightingtab]
+=== Lighting tab
+
+The lighting tab has the following settings, which works well for me.  They are
+set after the initial flash and load of Vial.  The “RGB Color” is `#aaaaff`,
+though that is only applicable if the effect is cycled to “Solid Color”.
+
+image:https://i.postimg.cc/R0LmWFp5/BM40-Vial-Lighting.jpg[Vial_Lighting,width=180]
+image:https://i.postimg.cc/d3Mgncxt/All-Vial-Effects.jpg[Vial_Lighting_Effects,width=180]
+
+Of course, changing the lighting effect is easy because I have a combo, “RGB”,
+which progresses to the next effect.  With only five effects, it is easy to hit
+one or a few <<combostab,combos>> to get to the one wanted.
+
+[#tapdancetab]
+=== Tap Dance tab
+
+There are seven tap dances used in this BM40 setup.  None use “On tap {plus}
+hold” and all have a “Tapping term (ms)” of 200, which is the default.
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[cols="3,6,6,6"]
+|===
+^.^|# |On tap |On hold |On double tap
+
+^.^m|TD(0)
+| Mouse Wheel Down
+| Mouse Wheel Down
+| Page Down
+^.^m|TD(1)
+| Mouse Wheel Up
+| Mouse Wheel Up
+| Page Up
+^.^m|TD(2)
+| Layer 0 (Base)
+| Layer 5 (Adjust)
+| Layer 4 (Numpad)
+^.^m|TD(3)
+| GUI
+| GUI
+| GUI{plus}E
+^.^m|TD(4)
+| 
+| 
+| Caps Lock
+^.^m|TD(5)
+| Shift
+| Shift
+| Num Lock
+^.^m|TD(6)
+| Control
+| Control
+| Scroll Lock
+|===
+
+[#combostab]
+=== Combos tab
+
+There are three combox used in this BM40 setup, which deliver:
+
+1. RGB mode change (i.e., move to the next RGB effect)
+2. Solid colour changes (only to keys not fixed with per-key colour), and
+3. Sound muting.
+
+[cols="1,1,1,1,1,4"]
+|===
+^.^|Combo |Key1 |Key2 |Key3 |Key4 |Output key
+
+^.^|1
+| R
+| G
+| B
+| 
+|RGB Mode + (`RGB_MOD`)
+^.^|2
+| H
+| U
+| E
+| 
+|HUE + (`RGB_HUI`)
+^.^|3
+| M
+| U
+| T
+| E
+|MUTE (`KC_MUTE`)
+|===
+
+The mnemonics make it easy to recall these combos’ functionalities.
+
+[#keyoverridestab]
+=== Key Overrides tab
+
+There are only three overrides:
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[cols="1,1,2,2,2,2"]
+|===
+^.^|Override |Layer(s) |Trigger |Tigger mods |Suppressed mods |Replacement
+
+^.^|1
+|0 and 4
+|`Bksp`
+|`LShift` and `RShift`
+|`LShift` and `RShift`
+|`Del`
+^.^|2
+|5
+|`Vol+`
+|`LShift` and `RShift`
+|`LShift` and `RShift`
+|`Vol-`
+^.^|3
+|5
+|*`BL+`*
+|`LShift` and `RShift`
+|`LShift` and `RShift`
+|`Bright-`
+|===
+
+NOTE: The third override behaves oddly in that whereas `Bright+` drives the
+backlight brightness increase when assigned to a key position, for the
+override, the `Bright-` replacement will only occur when the trigger is either
+`BL+` or `BL-`., not `Bright+`.  (This appears to be a QMK and/or Vial issue.)
+
+[#othervialdetails]
+=== Other Vial details
+
+[#jsonvilfile]
+==== JSON .vil file
+
+Vial settings are saved as flat JSON.  This is my final
+`bm40_rev2_kennypete.vil`:
+
+[source,json]
+----
+{"version": 1, "uid": 14035386074565470335, "layout": [[["KC_TAB", "KC_Q", "KC_W", "KC_E", "KC_R", "KC_T", "KC_Y", "KC_U", "KC_I", "KC_O", "KC_P", "KC_BSPACE"], ["KC_ESCAPE", "KC_A", "KC_S", "KC_D", "KC_F", "KC_G", "KC_H", "KC_J", "KC_K", "KC_L", "KC_SCOLON", "KC_QUOTE"], ["KC_LSHIFT", "KC_Z", "KC_X", "KC_C", "KC_V", "KC_B", "KC_N", "KC_M", "KC_COMMA", "KC_DOT", "KC_SLASH", "KC_SFTENT"], ["KC_LCTRL", "TD(3)", "KC_LALT", "TD(2)", "MO(1)", "KC_SPACE", -1, "MO(2)", "MEH_T(KC_HOME)", "ALL_T(KC_WH_D)", "RGUI_T(KC_WH_U)", "RCTL_T(KC_END)"]], [["LSFT(KC_GRAVE)", "LSFT(KC_1)", "LSFT(KC_2)", "LSFT(KC_3)", "LSFT(KC_4)", "LSFT(KC_5)", "LSFT(KC_6)", "LSFT(KC_7)", "LSFT(KC_8)", "LSFT(KC_9)", "LSFT(KC_0)", "KC_DELETE"], ["TD(4)", "KC_F1", "KC_F2", "KC_F3", "KC_F4", "KC_F5", "KC_LEFT", "KC_DOWN", "KC_UP", "KC_RIGHT", "LSFT(KC_MINUS)", "LSFT(KC_EQUAL)"], ["TD(5)", "KC_F6", "KC_F7", "KC_F8", "KC_F9", "KC_F10", "KC_F11", "KC_F12", "LSFT(KC_LBRACKET)", "LSFT(KC_RBRACKET)", "LSFT(KC_BSLASH)", "KC_SFTENT"], ["TD(6)", "LGUI_T(KC_APPLICATION)", "LALT_T(KC_INSERT)", "KC_NO", "KC_TRNS", "C_S(KC_SPACE)", -1, "MO(3)", "KC_HOME", "TD(0)", "TD(1)", "RCTL_T(KC_END)"]], [["KC_GRAVE", "KC_1", "KC_2", "KC_3", "KC_4", "KC_5", "KC_6", "KC_7", "KC_8", "KC_9", "KC_0", "KC_DELETE"], ["TD(4)", "LCTL(KC_F1)", "LCTL(KC_F2)", "LCTL(KC_F3)", "LCTL(KC_F4)", "LCTL(KC_F5)", "KC_LEFT", "KC_DOWN", "KC_UP", "KC_RIGHT", "KC_MINUS", "KC_EQUAL"], ["TD(5)", "LCTL(KC_F6)", "LCTL(KC_F7)", "LCTL(KC_F8)", "LCTL(KC_F9)", "LCTL(KC_F10)", "LCTL(KC_F11)", "LCTL(KC_F12)", "KC_LBRACKET", "KC_RBRACKET", "KC_BSLASH", "KC_SFTENT"], ["TD(6)", "LGUI_T(KC_APPLICATION)", "LALT_T(KC_INSERT)", "KC_NO", "MO(3)", "C_S(KC_F12)", -1, "KC_TRNS", "KC_HOME", "TD(0)", "TD(1)", "RCTL_T(KC_END)"]], [["KC_NO", "KC_NO", "KC_NO", "KC_NO", "QK_BOOT", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_TRNS", "KC_NO", -1, "KC_TRNS", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]], [["KC_TAB", "KC_NO", "KC_UP", "KC_NO", "KC_NO", "KC_KP_SLASH", "KC_KP_7", "KC_KP_8", "KC_KP_9", "KC_KP_MINUS", "KC_NO", "KC_BSPACE"], ["KC_ESCAPE", "KC_LEFT", "KC_DOWN", "KC_RIGHT", "KC_NO", "KC_KP_ASTERISK", "KC_KP_4", "KC_KP_5", "KC_KP_6", "KC_KP_PLUS", "KC_NO", "KC_DELETE"], ["LSFT_T(KC_NUMLOCK)", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_KP_EQUAL", "KC_KP_1", "KC_KP_2", "KC_KP_3", "KC_KP_COMMA", "KC_NO", "KC_SFTENT"], ["LCTL_T(KC_SCROLLLOCK)", "KC_NO", "KC_NO", "KC_TRNS", "KC_NO", "M0", -1, "KC_KP_0", "KC_KP_DOT", "KC_KP_ENTER", "KC_NO", "KC_RCTRL"]], [["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_PAUSE", "RGB_TOG"], ["KC_ESCAPE", "KC_NO", "KC_PSCREEN", "KC_NO", "KC_NO", "KC_NO", "KC_MS_L", "KC_MS_D", "KC_MS_U", "KC_MS_R", "KC_NO", "KC_NO"], ["KC_LSHIFT", "KC_NO", "KC_NO", "KC_NO", "KC_VOLU", "RGB_VAI", "KC_BTN3", "KC_BTN2", "KC_NO", "KC_NO", "KC_NO", "KC_SFTENT"], ["KC_LCTRL", "KC_LGUI", "KC_LALT", "KC_TRNS", "KC_NO", "KC_BTN1", -1, "KC_NO", "KC_WH_L", "TD(0)", "TD(1)", "KC_WH_R"]], [["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1, "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]]], "encoder_layout": [[], [], [], [], [], [], []], "layout_options": -1, "macro": [[["tap", "KC_KP_0", "KC_KP_0"]], [], []], "vial_protocol": 6, "via_protocol": 9, "tap_dance": [["KC_WH_D", "KC_WH_D", "KC_PGDOWN", "KC_NO", 200], ["KC_WH_U", "KC_WH_U", "KC_PGUP", "KC_NO", 200], ["TO(0)", "TO(5)", "TO(4)", "KC_NO", 200], ["KC_LGUI", "KC_LGUI", "LGUI(KC_E)", "KC_NO", 200], ["KC_NO", "KC_NO", "KC_CAPSLOCK", "KC_NO", 200], ["KC_LSHIFT", "KC_LSHIFT", "KC_NUMLOCK", "KC_NO", 200], ["KC_LCTRL", "KC_LCTRL", "KC_SCROLLLOCK", "KC_NO", 200], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", 200], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", 200]], "combo": [["KC_R", "KC_G", "KC_B", "KC_NO", "RGB_MOD"], ["KC_H", "KC_U", "KC_E", "KC_NO", "RGB_HUI"], ["KC_M", "KC_U", "KC_T", "KC_E", "KC_MUTE"], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]], "key_override": [{"trigger": "KC_BSPACE", "replacement": "KC_DELETE", "layers": 17, "trigger_mods": 34, "negative_mod_mask": 0, "suppressed_mods": 34, "options": 137}, {"trigger": "KC_VOLU", "replacement": "KC_VOLD", "layers": 32, "trigger_mods": 34, "negative_mod_mask": 0, "suppressed_mods": 34, "options": 137}, {"trigger": "BL_INC", "replacement": "RGB_VAD", "layers": 32, "trigger_mods": 34, "negative_mod_mask": 0, "suppressed_mods": 34, "options": 137}, {"trigger": "KC_NO", "replacement": "KC_NO", "layers": 65535, "trigger_mods": 0, "negative_mod_mask": 0, "suppressed_mods": 0, "options": 7}, {"trigger": "KC_NO", "replacement": "KC_NO", "layers": 65535, "trigger_mods": 0, "negative_mod_mask": 0, "suppressed_mods": 0, "options": 7}, {"trigger": "KC_NO", "replacement": "KC_NO", "layers": 65535, "trigger_mods": 0, "negative_mod_mask": 0, "suppressed_mods": 0, "options": 7}], "alt_repeat_key": [], "settings": {}}
+----
+
+NOTE: This is identical for the BM40 and CSTC40, except for the `uid`.  The
+Chosfox Geonix Rev.2.5 is similar but for a few extras on layer 5.
+
+[#aboutkprepublicbm40hotswaprgb]
+==== About KPRepublic BM40 Hotswap RGB…
+
+....
+Manufacturer: KPRepublic
+Product: BM40 Hotswap RGB
+VID: 4B50
+PID: 3430
+Device: b'\\\\?\\hid#vid_4b50&pid_3430&mi_01#8&28a22dcc&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}'
+
+VIA protocol: 9
+Vial protocol: 6
+Vial keyboard ID: C2C7B545ABF0687F
+
+Macro entries: 3
+Macro memory: 101 bytes
+Macro delays: yes
+Complex (2-byte) macro keycodes: yes
+
+Tap Dance entries: 9
+Combo entries: 6
+Key Override entries: 6
+Alt Repeat Key entries: unsupported - disabled in firmware
+Caps Word: unsupported - disabled in firmware
+Layer Lock: unsupported - disabled in firmware
+
+QMK Settings: disabled in firmware
+....
+
+[#qmkfiles]
+== QMK files
+
+[#filerev2configh]
+=== File: rev2/config.h
+
+This file is unchanged from the stock.
+
+[source,c]
+----
+/* Copyright 2020 tominabox1
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+#pragma once
+
+#define IS31FL3733_I2C_ADDRESS_1 IS31FL3733_I2C_ADDRESS_GND_GND
+----
+
+[#filerev2keyboardjson]
+=== File: rev2/keyboard.json
+
+[source,json]
+----
+{
+    "keyboard_name": "BM40 Hotswap RGB",
+    "manufacturer": "KPRepublic",
+    "maintainer": "qmk",
+    "diode_direction": "ROW2COL",
+    "features": {
+        "bootmagic": true,
+        "mousekey": true,
+        "extrakey": true,
+        "rgb_matrix": true,
+        "nkro": false
+    },
+    "processor": "atmega32u4",
+    "usb": {
+        "vid": "0x4B50",
+        "pid": "0x3430",
+        "device_version": "0.0.2"
+    },
+    "rgb_matrix": {
+        "driver": "is31fl3733",
+        "max_brightness": 150,
+        "animations": {
+          "cycle_all": true,
+          "cycle_left_right": true,
+          "hue_pendulum": true
+        },
+        "layout": [
+            {"matrix": [0, 0],  "x": 0,    "y": 0, "flags": 1},
+            {"matrix": [0, 1],  "x": 20,   "y": 0, "flags": 4},
+            {"matrix": [0, 2],  "x": 40,   "y": 0, "flags": 4},
+            {"matrix": [0, 3],  "x": 61,   "y": 0, "flags": 4},
+            {"matrix": [0, 4],  "x": 81,   "y": 0, "flags": 4},
+            {"matrix": [0, 5],  "x": 101,  "y": 0, "flags": 4},
+            {"matrix": [0, 6],  "x": 122,  "y": 0, "flags": 4},
+            {"matrix": [0, 7],  "x": 142,  "y": 0, "flags": 4},
+            {"matrix": [0, 8],  "x": 162,  "y": 0, "flags": 4},
+            {"matrix": [0, 9],  "x": 183,  "y": 0, "flags": 4},
+            {"matrix": [0, 10], "x": 203,  "y": 0, "flags": 4},
+            {"matrix": [0, 11], "x": 224,  "y": 0, "flags": 1},
+            {"matrix": [1, 0],  "x": 0,    "y": 21, "flags": 1},
+            {"matrix": [1, 1],  "x": 20,   "y": 21, "flags": 4},
+            {"matrix": [1, 2],  "x": 40,   "y": 21, "flags": 4},
+            {"matrix": [1, 3],  "x": 61,   "y": 21, "flags": 4},
+            {"matrix": [1, 4],  "x": 81,   "y": 21, "flags": 4},
+            {"matrix": [1, 5],  "x": 101,  "y": 21, "flags": 4},
+            {"matrix": [1, 6],  "x": 122,  "y": 21, "flags": 4},
+            {"matrix": [1, 7],  "x": 142,  "y": 21, "flags": 4},
+            {"matrix": [1, 8],  "x": 162,  "y": 21, "flags": 4},
+            {"matrix": [1, 9],  "x": 183,  "y": 21, "flags": 4},
+            {"matrix": [1, 10], "x": 203,  "y": 21, "flags": 4},
+            {"matrix": [1, 11], "x": 224,  "y": 21, "flags": 1},
+            {"matrix": [2, 0],  "x": 0,    "y": 42, "flags": 1},
+            {"matrix": [2, 1],  "x": 20,   "y": 42, "flags": 4},
+            {"matrix": [2, 2],  "x": 40,   "y": 42, "flags": 4},
+            {"matrix": [2, 3],  "x": 61,   "y": 42, "flags": 4},
+            {"matrix": [2, 4],  "x": 81,   "y": 42, "flags": 4},
+            {"matrix": [2, 5],  "x": 101,  "y": 42, "flags": 4},
+            {"matrix": [2, 6],  "x": 122,  "y": 42, "flags": 4},
+            {"matrix": [2, 7],  "x": 142,  "y": 42, "flags": 4},
+            {"matrix": [2, 8],  "x": 162,  "y": 42, "flags": 4},
+            {"matrix": [2, 9],  "x": 183,  "y": 42, "flags": 4},
+            {"matrix": [2, 10], "x": 203,  "y": 42, "flags": 4},
+            {"matrix": [2, 11], "x": 224,  "y": 42, "flags": 1},
+            {"matrix": [3, 0],  "x": 0,    "y": 64, "flags": 1},
+            {"matrix": [3, 1],  "x": 20,   "y": 64, "flags": 1},
+            {"matrix": [3, 2],  "x": 40,   "y": 64, "flags": 1},
+            {"matrix": [3, 3],  "x": 61,   "y": 64, "flags": 1},
+            {"matrix": [3, 4],  "x": 81,   "y": 64, "flags": 1},
+            {"matrix": [3, 5],  "x": 111,  "y": 64, "flags": 1},
+            {"matrix": [3, 7],  "x": 142,  "y": 64, "flags": 1},
+            {"matrix": [3, 8],  "x": 162,  "y": 64, "flags": 1},
+            {"matrix": [3, 9],  "x": 183,  "y": 64, "flags": 1},
+            {"matrix": [3, 10], "x": 203,  "y": 64, "flags": 1},
+            {"matrix": [3, 11], "x": 224,  "y": 64, "flags": 1}
+        ],
+        "sleep": true
+    },
+    "matrix_pins": {
+        "cols": ["B2", "B3", "D5", "D3", "D2", "B7", "F0", "B4", "B5", "B6", "C6", "C7"],
+        "rows": ["D7", "F7", "F6", "F5"]
+    },
+    "bootloader": "atmel-dfu",
+    "community_layouts": ["planck_mit"],
+    "layout_aliases": {
+        "LAYOUT_planck_mit": "LAYOUT_ortho_4x12_1x2uC"
+    },
+    "layouts": {
+        "LAYOUT_ortho_4x12_1x2uC": {
+            "layout": [
+                {"label":"K00", "matrix": [0, 0], "x":0, "y":0},
+                {"label":"K01", "matrix": [0, 1], "x":1, "y":0},
+                {"label":"K02", "matrix": [0, 2], "x":2, "y":0},
+                {"label":"K03", "matrix": [0, 3], "x":3, "y":0},
+                {"label":"K04", "matrix": [0, 4], "x":4, "y":0},
+                {"label":"K05", "matrix": [0, 5], "x":5, "y":0},
+                {"label":"K06", "matrix": [0, 6], "x":6, "y":0},
+                {"label":"K07", "matrix": [0, 7], "x":7, "y":0},
+                {"label":"K08", "matrix": [0, 8], "x":8, "y":0},
+                {"label":"K09", "matrix": [0, 9], "x":9, "y":0},
+                {"label":"K0A", "matrix": [0, 10], "x":10, "y":0},
+                {"label":"K0B", "matrix": [0, 11], "x":11, "y":0},
+                {"label":"K10", "matrix": [1, 0], "x":0, "y":1},
+                {"label":"K11", "matrix": [1, 1], "x":1, "y":1},
+                {"label":"K12", "matrix": [1, 2], "x":2, "y":1},
+                {"label":"K13", "matrix": [1, 3], "x":3, "y":1},
+                {"label":"K14", "matrix": [1, 4], "x":4, "y":1},
+                {"label":"K15", "matrix": [1, 5], "x":5, "y":1},
+                {"label":"K16", "matrix": [1, 6], "x":6, "y":1},
+                {"label":"K17", "matrix": [1, 7], "x":7, "y":1},
+                {"label":"K18", "matrix": [1, 8], "x":8, "y":1},
+                {"label":"K19", "matrix": [1, 9], "x":9, "y":1},
+                {"label":"K1A", "matrix": [1, 10], "x":10, "y":1},
+                {"label":"K1B", "matrix": [1, 11], "x":11, "y":1},
+                {"label":"K20", "matrix": [2, 0], "x":0, "y":2},
+                {"label":"K21", "matrix": [2, 1], "x":1, "y":2},
+                {"label":"K22", "matrix": [2, 2], "x":2, "y":2},
+                {"label":"K23", "matrix": [2, 3], "x":3, "y":2},
+                {"label":"K24", "matrix": [2, 4], "x":4, "y":2},
+                {"label":"K25", "matrix": [2, 5], "x":5, "y":2},
+                {"label":"K26", "matrix": [2, 6], "x":6, "y":2},
+                {"label":"K27", "matrix": [2, 7], "x":7, "y":2},
+                {"label":"K28", "matrix": [2, 8], "x":8, "y":2},
+                {"label":"K29", "matrix": [2, 9], "x":9, "y":2},
+                {"label":"K2A", "matrix": [2, 10], "x":10, "y":2},
+                {"label":"K2B", "matrix": [2, 11], "x":11, "y":2},
+                {"label":"K30", "matrix": [3, 0], "x":0, "y":3},
+                {"label":"K31", "matrix": [3, 1], "x":1, "y":3},
+                {"label":"K32", "matrix": [3, 2], "x":2, "y":3},
+                {"label":"K33", "matrix": [3, 3], "x":3, "y":3},
+                {"label":"K34", "matrix": [3, 4], "x":4, "y":3},
+                {"label":"K35", "matrix": [3, 5], "x":5, "y":3, "w":2},
+                {"label":"K37", "matrix": [3, 7], "x":7, "y":3},
+                {"label":"K38", "matrix": [3, 8], "x":8, "y":3},
+                {"label":"K39", "matrix": [3, 9], "x":9, "y":3},
+                {"label":"K3A", "matrix": [3, 10], "x":10, "y":3},
+                {"label":"K3B", "matrix": [3, 11], "x":11, "y":3}
+            ]
+        }
+    }
+}
+----
+
+[#filerev2rev2c]
+=== File: rev2/rev2.c
+
+This file is unchanged from the stock.
+
+[source,c]
+----
+/* Copyright 2020 tominabox1, Richard Goulter <richard.goulter@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+#include "quantum.h"
+
+#if defined(RGB_MATRIX_ENABLE)
+
+const is31fl3733_led_t PROGMEM g_is31fl3733_leds[IS31FL3733_LED_COUNT] = {
+    { 0, SW2_CS1, SW1_CS1, SW3_CS1 },
+    { 0, SW2_CS2, SW1_CS2, SW3_CS2 },
+    { 0, SW2_CS3, SW1_CS3, SW3_CS3 },
+    { 0, SW2_CS4, SW1_CS4, SW3_CS4 },
+    { 0, SW2_CS5, SW1_CS5, SW3_CS5 },
+    { 0, SW2_CS6, SW1_CS6, SW3_CS6 },
+    { 0, SW2_CS7, SW1_CS7, SW3_CS7 },
+    { 0, SW2_CS8, SW1_CS8, SW3_CS8 },
+    { 0, SW2_CS9, SW1_CS9, SW3_CS9 },
+    { 0, SW2_CS10, SW1_CS10, SW3_CS10 },
+    { 0, SW2_CS11, SW1_CS11, SW3_CS11 },
+    { 0, SW2_CS12, SW1_CS12, SW3_CS12 },
+
+    { 0, SW5_CS1, SW4_CS1, SW6_CS1 },
+    { 0, SW5_CS2, SW4_CS2, SW6_CS2 },
+    { 0, SW5_CS3, SW4_CS3, SW6_CS3 },
+    { 0, SW5_CS4, SW4_CS4, SW6_CS4 },
+    { 0, SW5_CS5, SW4_CS5, SW6_CS5 },
+    { 0, SW5_CS6, SW4_CS6, SW6_CS6 },
+    { 0, SW5_CS7, SW4_CS7, SW6_CS7 },
+    { 0, SW5_CS8, SW4_CS8, SW6_CS8 },
+    { 0, SW5_CS9, SW4_CS9, SW6_CS9 },
+    { 0, SW5_CS10, SW4_CS10, SW6_CS10 },
+    { 0, SW5_CS11, SW4_CS11, SW6_CS11 },
+    { 0, SW5_CS12, SW4_CS12, SW6_CS12 },
+
+    { 0, SW8_CS1, SW7_CS1, SW9_CS1 },
+    { 0, SW8_CS2, SW7_CS2, SW9_CS2 },
+    { 0, SW8_CS3, SW7_CS3, SW9_CS3 },
+    { 0, SW8_CS4, SW7_CS4, SW9_CS4 },
+    { 0, SW8_CS5, SW7_CS5, SW9_CS5 },
+    { 0, SW8_CS6, SW7_CS6, SW9_CS6 },
+    { 0, SW8_CS7, SW7_CS7, SW9_CS7 },
+    { 0, SW8_CS8, SW7_CS8, SW9_CS8 },
+    { 0, SW8_CS9, SW7_CS9, SW9_CS9 },
+    { 0, SW8_CS10, SW7_CS10, SW9_CS10 },
+    { 0, SW8_CS11, SW7_CS11, SW9_CS11 },
+    { 0, SW8_CS12, SW7_CS12, SW9_CS12 },
+
+    { 0, SW11_CS1, SW10_CS1, SW12_CS1 },
+    { 0, SW11_CS2, SW10_CS2, SW12_CS2 },
+    { 0, SW11_CS3, SW10_CS3, SW12_CS3 },
+    { 0, SW11_CS4, SW10_CS4, SW12_CS4 },
+    { 0, SW11_CS5, SW10_CS5, SW12_CS5 },
+    { 0, SW11_CS6, SW10_CS6, SW12_CS6 },
+    { 0, SW11_CS8, SW10_CS8, SW12_CS8 },
+    { 0, SW11_CS9, SW10_CS9, SW12_CS9 },
+    { 0, SW11_CS10, SW10_CS10, SW12_CS10 },
+    { 0, SW11_CS11, SW10_CS11, SW12_CS11 },
+    { 0, SW11_CS12, SW10_CS12, SW12_CS12 }
+};
+
+#endif /* RGB_MATRIX_ENABLE */
+----
+
+[#filerev2keymapskennypeteconfigh]
+=== File: rev2/keymaps/kennypete/config.h
+
+This file is common to the `kennypete` BM40 and CSTC40 setups, except for
+`VIAL_KEYBOARD_UID`.
+
+[source,c]
+----
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+
+#pragma once
+
+#define VIAL_KEYBOARD_UID {0x7F, 0x68, 0xF0, 0xAB, 0x45, 0xB5, 0xC7, 0xC2}
+
+// unlock combination
+#define VIAL_UNLOCK_COMBO_ROWS { 0, 2 }
+#define VIAL_UNLOCK_COMBO_COLS { 0, 11 }
+
+// number of layers, combos, macros, tap dance entries
+#define DYNAMIC_KEYMAP_LAYER_COUNT 7
+#define DYNAMIC_KEYMAP_MACRO_COUNT 3
+#define VIAL_COMBO_ENTRIES 6
+#define VIAL_KEY_OVERRIDE_ENTRIES 6
+#define VIAL_TAP_DANCE_ENTRIES 9
+
+// no one shot mod/layer keycodes are used anywhere in my keymaps/Vial so it
+// is disabled - https://docs.qmk.fm/squeezing_avr - the rest of the config.h
+// items in there are either off natively or have been accounted for
+#define NO_ACTION_ONESHOT
+
+// settings mouse keys
+#define MOUSEKEY_DELAY             15  // Delay between pressing a movement key and cursor movement
+#define MOUSEKEY_INTERVAL          33  // Time between cursor movements (ms)
+#define MOUSEKEY_MOVE_DELTA        6   // Step size
+#define MOUSEKEY_MAX_SPEED         6   // Maximum cursor speed at which acceleration stops
+#define MOUSEKEY_TIME_TO_MAX       33  // Time until maximum cursor speed is reached
+#define MOUSEKEY_WHEEL_DELAY       8   // Delay between pressing a wheel key and wheel movement
+#define MOUSEKEY_WHEEL_INTERVAL    80  // Time between wheel movements
+#define MOUSEKEY_WHEEL_MAX_SPEED   8   // Maximum scroll steps per scroll action
+#define MOUSEKEY_WHEEL_TIME_TO_MAX 40  // Time until maximum scroll speed is reached
+
+----
+
+[#filerev2keymapskennypetekeymapc]
+=== File: rev2/keymaps/kennypete/keymap.c
+
+This file is common to the `kennypete` BM40 and CSTC40 setups.
+
+[source,c]
+----
+/* Copyright 2020 tominabox1
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Modifications: Copyright 2026 Peter Kenny
+ * The layout keymap is reworked, layers are renamed, comments re-worked, and
+ * layouts (aside from much of _BASE) are modified significantly.
+ * The PER-KEY COLOURS section is new.
+ */
+
+#include QMK_KEYBOARD_H
+
+/* *****************************************************************
+ *       DEFAULT LAYERS (WHICH ARE OVERWRITEN WITH VIAL LATER)
+ *  These could be expanded to make Vial redundant.  However, since
+ *  some things are much easier to address interactively in Vial,
+ *  what has been done here is to only make it aligned-yet-minimal,
+ *  for the state the board is in temporarily after flashing.
+ * *****************************************************************
+*/
+
+enum layers {
+  _BASE,
+  _SYMBOLS,
+  _NUMBERS,
+  _ADJUST
+};
+
+const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+
+/* Base
+ * ,-----------------------------------------------------------------------------------------------------------.
+ * |  Tab   |    Q   |    W   |    E   |    R   |    T   |    Y   |    U   |    I   |    O   |    P   |  Bksp  |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |  Esc   |    A   |    S   |    D   |    F   |    G   |    H   |    J   |    K   |    L   |    ;   |   "    |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |  Shift |    Z   |    X   |    C   |    V   |    B   |    N   |    M   |    ,   |    .   |    /   | Enter  |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |  Ctrl  |  Gui   |  Alt   |  BLTog |  Lower |     Space       |  Raise |  Left  |  Down  |   Up   |  Right |
+ * `-----------------------------------------------------------------------------------------------------------'
+ */
+[_BASE] = LAYOUT_ortho_4x12_1x2uC(
+    KC_TAB  , KC_Q   , KC_W   , KC_E   , KC_R   , KC_T   , KC_Y   , KC_U   , KC_I   , KC_O   , KC_P   , KC_BSPC,
+    KC_ESC  , KC_A   , KC_S   , KC_D   , KC_F   , KC_G   , KC_H   , KC_J   , KC_K   , KC_L   , KC_SCLN, KC_QUOT,
+    KC_LSFT , KC_Z   , KC_X   , KC_C   , KC_V   , KC_B   , KC_N   , KC_M   , KC_COMM, KC_DOT , KC_SLSH, KC_ENT ,
+    KC_LCTL , KC_LGUI, KC_LALT, RGB_TOG, MO(1)  , KC_SPC          , MO(2)  , KC_LEFT, KC_DOWN, KC_UP  , KC_RGHT
+),
+
+/* Symbols
+ * ,-----------------------------------------------------------------------------------------------------------.
+ * |    ~   |    !   |    @   |    #   |    $   |    %   |    ^   |    &   |    *   |   (    |    )   |  Del   |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |        |   F1   |   F2   |   F3   |   F4   |   F5   |  Left  |  Down  |   Up   |  Right |    _   |   +    |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |  Shift |   F6   |   F7   |   F8   |   F9   |  F10   |  F11   |  F12   |   {    |   }    |    |   |        |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |  Ctrl  |        |   Alt  |        | ______ |                 |  Raise |        |        |        |        |
+ * `-----------------------------------------------------------------------------------------------------------'
+ */
+[_SYMBOLS] = LAYOUT_ortho_4x12_1x2uC(
+    KC_TILD , KC_EXLM, KC_AT  , KC_HASH, KC_DLR , KC_PERC, KC_CIRC, KC_AMPR, KC_ASTR, KC_LPRN, KC_RPRN, KC_DEL ,
+    KC_NO   , KC_F1  , KC_F2  , KC_F3  , KC_F4  , KC_F5  , KC_LEFT, KC_DOWN, KC_UP  , KC_RGHT, KC_UNDS, KC_PLUS,
+    KC_LSFT , KC_F6  , KC_F7  , KC_F8  , KC_F9  , KC_F10 , KC_F11 , KC_F12 , KC_LCBR, KC_RCBR, KC_PIPE, KC_NO  ,
+    KC_LCTL , KC_NO  , KC_LALT, KC_NO  , KC_TRNS, KC_NO           , MO(3)  , KC_NO  , KC_NO  , KC_NO  , KC_NO
+),
+
+/* Numbers
+ * ,-----------------------------------------------------------------------------------------------------------.
+ * |    `   |    1   |    2   |    3   |    4   |    5   |    6   |    7   |    8   |    9   |    0   |  Del   |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |        |        |        |        |        |        |  Left  |  Down  |   Up   |  Right |    -   |   =    |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |  Shift |        |        |        |        |        |        |        |   [    |    ]   |    \   |        |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |  Ctrl  |        |   Alt  |        | Lower  |                 | ______ |        |        |        |        |
+ * `-----------------------------------------------------------------------------------------------------------'
+ */
+[_NUMBERS] = LAYOUT_ortho_4x12_1x2uC(
+    KC_GRV  , KC_1   , KC_2   , KC_3   , KC_4   , KC_5   , KC_6   , KC_7   , KC_8   , KC_9   , KC_0   , KC_DEL ,
+    KC_NO   , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_LEFT, KC_DOWN, KC_UP  , KC_RGHT, KC_MINS, KC_EQL ,
+    KC_LSFT , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_LBRC, KC_RBRC, KC_BSLS, KC_NO  ,
+    KC_LCTL , KC_NO  , KC_LALT, KC_NO  , MO(3)  , KC_NO           , KC_TRNS, KC_NO  , KC_NO  , KC_NO  , KC_NO
+),
+
+/* Adjust (Lower + Raise)
+ * [QK_BOOT only]
+ * ,-----------------------------------------------------------------------------------------------------------.
+ * |        |        |        |        | BOOT   |        |        |        |        |        |        |        |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |        |        |        |        |        |        |        |        |        |        |        |        |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |        |        |        |        |        |        |        |        |        |        |        |        |
+ * |--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------|
+ * |        |        |        |        | ______ |                 | ______ |        |        |        |        |
+ * `-----------------------------------------------------------------------------------------------------------'
+ */
+[_ADJUST] = LAYOUT_ortho_4x12_1x2uC(
+     KC_NO  , KC_NO  , KC_NO  , KC_NO  , QK_BOOT, KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  ,
+     KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  ,
+     KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_NO  ,
+     KC_NO  , KC_NO  , KC_NO  , KC_NO  , KC_TRNS, KC_NO           , KC_TRNS, KC_NO  , KC_NO  , KC_NO  , KC_NO
+)
+
+};
+
+// ***************************************************************************
+// ***                           PER KEY COLOURS                           ***
+// ***************************************************************************
+
+#define RC(r, c) (((r) << 4) | (c))
+
+static void apply_hsv_table(const uint8_t (*table)[3], uint8_t count) {
+    uint8_t val = rgb_matrix_get_val();  // live global brightness
+
+    for (uint8_t i = 0; i < count; i++) {
+        uint8_t rc  = pgm_read_byte(&table[i][0]);
+        uint8_t h   = pgm_read_byte(&table[i][1]);
+        uint8_t s   = pgm_read_byte(&table[i][2]);
+        uint8_t row = rc >> 4;
+        uint8_t col = rc & 0x0F;
+
+        HSV hsv = {h, s, val};
+        RGB rgb = hsv_to_rgb(hsv);
+
+        uint8_t led_index = g_led_config.matrix_co[row][col];
+        if (led_index != NO_LED) {
+            rgb_matrix_set_color(led_index, rgb.r, rgb.g, rgb.b);
+        }
+    }
+}
+
+static void apply_off_table(const uint8_t *table, uint8_t count) {
+    for (uint8_t i = 0; i < count; i++) {
+        uint8_t rc  = pgm_read_byte(&table[i]);
+        uint8_t row = rc >> 4;
+        uint8_t col = rc & 0x0F;
+        uint8_t led_index = g_led_config.matrix_co[row][col];
+        if (led_index != NO_LED) {
+            rgb_matrix_set_color(led_index, RGB_OFF);
+        }
+    }
+}
+
+// Hue, Sat pairs for colour names
+//
+// QMK's RGB Matrix works in HSV internally, scaled 0-255 for all three of
+// H/S/V (not the usual 0-360 degrees / 0-100% you'd see in a colour picker).
+// Only H and S are stored here; V comes from the current brightness at
+// render time, which is what makes these colours respond to Bright +/-.
+//
+// RGB->HSV conversion, worked for all three possible "max channel" cases
+// (the hue formula changes depending on which of R/G/B is largest):
+//
+// R is max -- "MAGENTA" RGB (255, 0, 126):
+//   max=255 (Red), min=0, delta=255
+//   S = 255 * (delta/max) = 255 * (255/255) = 255
+//   H = 60 * ((G-B)/delta) = 60 * ((0-126)/255) = -29.65 deg
+//   Negative result -- wrap by adding 360: -29.65 + 360 = 330.35 deg
+//   H rescaled to QMK's 0-255: round(330.35 * 255/360) = 234
+//   -> HS_MAGENTA = 234, 255
+//
+// G is max -- "GREEN" RGB (0, 255, 0):
+//   max=255 (Green), min=0, delta=255
+//   S = 255 * (delta/max) = 255 * (255/255) = 255
+//   H = 60 * (((B-R)/delta) + 2) = 60 * (((0-0)/255) + 2) = 120 deg
+//   H rescaled to QMK's 0-255: round(120 * 255/360) = 85
+//   -> HS_GREEN = 85, 255
+//
+// B is max -- "ROYAL" RGB (83, 184, 255):
+//   max=255 (Blue), min=83, delta=172              <- not fully saturated;
+//                                                      min isn't 0 here
+//   S = 255 * (delta/max) = 255 * (172/255) = 172
+//   H = 60 * (((R-G)/delta) + 4) = 60 * (((83-184)/172) + 4) = 204.77 deg
+//   H rescaled to QMK's 0-255: round(204.77 * 255/360) = 145
+//   -> HS_ROYAL = 145, 172
+//
+// V (brightness) is always just the max channel itself, unscaled -- but it's
+// deliberately not stored in these pairs, since it comes live from the
+// board's current brightness setting instead (see apply_hsv_table above).
+//
+// Hue, Sat pairs for the built-in RGB_* colours (quantum/colors.h) with
+// lime bespoke to ensure it is visually distinct and not quasi white
+#define HS_WHITE     0,   0
+#define HS_ROSE      0,   90
+#define HS_RED       0,   255
+#define HS_ORANGE    24,  150
+#define HS_YELLOW    42,  255
+#define HS_LIME      68,  167
+#define HS_GREEN     85,  255
+#define HS_EMERALD   107, 255
+#define HS_CYAN      128, 255
+#define HS_ROYAL     145, 172
+#define HS_BLUE      170, 255
+#define HS_PURPLE    190, 172
+#define HS_PINK      212, 255
+#define HS_MAGENTA   234, 255
+
+bool rgb_matrix_indicators_user(void) {
+    uint8_t layer = get_highest_layer(layer_state);
+
+    // Special treatment of layer three, which has only the QK_BOOT key
+    // (keeping fixed-brightness deliberately as a safety indicator, not part
+    // of the colour scheme).  The QK_BOOT key and the Lower/Raise keys are
+    // all made RGB_RED so that it is really clear we are in a danger zone.
+    if (layer == 3) {
+        rgb_matrix_set_color_all(RGB_OFF);
+
+        uint8_t led_index = g_led_config.matrix_co[0][4];   // QK_BOOT
+        if (led_index != NO_LED) {
+            rgb_matrix_set_color(led_index, RGB_RED);
+        }
+
+        led_index = g_led_config.matrix_co[3][4];            // Lower, is being held
+        if (led_index != NO_LED) {
+            rgb_matrix_set_color(led_index, RGB_RED);
+        }
+
+        led_index = g_led_config.matrix_co[3][7];            // Raise, is being held
+        if (led_index != NO_LED) {
+            rgb_matrix_set_color(led_index, RGB_RED);
+        }
+
+        return false;
+    }
+
+    // Base layer
+    if (layer == 0) {
+        static const uint8_t PROGMEM base_hues[][3] = {
+            // Default for alpha characters and punctuation so that a couple
+            // of RGB modes (Cycle Left Right and Hue Pendulum) can be used
+            // Row 0 just ` as BLUE and Backspace RED
+            {RC(0,0), HS_YELLOW},   // Tab
+            {RC(0,11), HS_RED},     // Bksp
+                                    // Other 1-10 Q W E R T Y U I O P default
+            // Row 1
+            {RC(1,0), HS_GREEN},    // Esc
+            {RC(1,4), HS_YELLOW},   // F
+            {RC(1,7), HS_YELLOW},   // J
+                                    // Other 1-3,5,6,8-11 A S D G H K L ; ' default
+            // Row 2
+            {RC(2,0), HS_ROSE},     // Sft
+                                    // 1-10 Z X C V B N M , . / default
+            {RC(2,11), HS_ROSE},    // RS Enter
+            // Row 3
+            {RC(3,0), HS_ROSE},     // Ctl
+            {RC(3,1), HS_PURPLE},   // TD(3) - Gui [Hold: Gui; Double Tap: Gui+E]
+            {RC(3,2), HS_MAGENTA},  // Alt
+            {RC(3,3), HS_BLUE},     // TD(2) - TO(0) [Double Tap: TO(4); Hold: TO(5)]
+            {RC(3,4), HS_ROSE},     // Lower
+                                    // (3,5) space default
+                                    // (3,6) is n/a for this 2U board
+            {RC(3,7), HS_ROSE},     // Raise
+            {RC(3,8), HS_ROYAL},    // Home [Hold: Meh (Ctl + Sft + Alt)]
+            {RC(3,9), HS_BLUE},     // Mouse Wheel Down [Hold: Hyper (Ctl + Sft + Alt + Gui)]
+            {RC(3,10), HS_PURPLE},  // Mouse Wheel Up [Hold: Gui]
+            {RC(3,11), HS_PURPLE},  // End [Hold: Ctl]
+        };
+        apply_hsv_table(base_hues, ARRAY_SIZE(base_hues));
+        return false;
+    }
+
+    // Lower layer
+    if (layer == 1) {
+        static const uint8_t PROGMEM lower_hues[][3] = {
+            // Row 0
+            {RC(0,0), HS_ROYAL},    // ~
+            {RC(0,1), HS_ROYAL},    // !
+            {RC(0,2), HS_ROYAL},    // @
+            {RC(0,3), HS_ROYAL},    // #
+            {RC(0,4), HS_ROYAL},    // $
+            {RC(0,5), HS_ROYAL},    // %
+            {RC(0,6), HS_ROYAL},    // ^
+            {RC(0,7), HS_ROYAL},    // &
+            {RC(0,8), HS_ROYAL},    // *
+            {RC(0,9), HS_ROYAL},    // (
+            {RC(0,10), HS_ROYAL},   // )
+            {RC(0,11), HS_RED},     // Delete
+            // Row 1
+            {RC(1,0), HS_ROSE},     // TD(4) - NO [Double Tap: Caps Lock]
+            {RC(1,1), HS_EMERALD},  // F1
+            {RC(1,2), HS_EMERALD},  // F2
+            {RC(1,3), HS_EMERALD},  // F3
+            {RC(1,4), HS_EMERALD},  // F4
+            {RC(1,5), HS_EMERALD},  // F5
+            {RC(1,6), HS_YELLOW},   // Left
+            {RC(1,7), HS_YELLOW},   // Down
+            {RC(1,8), HS_YELLOW},   // Up
+            {RC(1,9), HS_YELLOW},   // Right
+            {RC(1,10), HS_ROYAL},   // _
+            {RC(1,11), HS_ROYAL},   // +
+            // Row 2
+            {RC(2,0), HS_ROSE},     // TD(5) - Sft [Hold: Sft, Double Tap: Num Lock]
+            {RC(2,1), HS_EMERALD},  // F6
+            {RC(2,2), HS_EMERALD},  // F7
+            {RC(2,3), HS_EMERALD},  // F8
+            {RC(2,4), HS_EMERALD},  // F9
+            {RC(2,5), HS_EMERALD},  // F10
+            {RC(2,6), HS_EMERALD},  // F11
+            {RC(2,7), HS_EMERALD},  // F12
+            {RC(2,8), HS_ROYAL},    // {
+            {RC(2,9), HS_ROYAL},    // }
+            {RC(2,10), HS_ROYAL},   // |
+            {RC(2,11), HS_ROSE},    // RS Enter
+            // Row 3
+            {RC(3,0), HS_ROSE},     // TD(6) - Ctl [Hold: Ctl, Double Tap: Scroll Lock]
+            {RC(3,1), HS_PURPLE},   // Menu [Hold: Gui]
+            {RC(3,2), HS_MAGENTA},  // Insert [Hold: Alt]
+            {RC(3,5), HS_ROYAL},    // Ctl-Sft-Space
+                                    // (3,6) is n/a for this 2U board
+            {RC(3,7), HS_ROSE},     // MO(3)
+            {RC(3,8), HS_PURPLE},   // Home
+            {RC(3,9), HS_ROSE},     // TD(0) [Tap/Hold: Mouse Wheel Down; Double Tap: Page Down]
+            {RC(3,10), HS_ROSE},    // TD(1) [Tap/Hold: Mouse Wheel Up; Double Tap: Page Up]
+            {RC(3,11), HS_PURPLE},  // End [Hold: Ctl]
+        };
+        static const uint8_t PROGMEM lower_off[] = {
+            RC(3,3),                // Inactive 'QMK' key
+            RC(3,4),                // Lower itself is currently held
+        };
+        apply_hsv_table(lower_hues, ARRAY_SIZE(lower_hues));
+        apply_off_table(lower_off, ARRAY_SIZE(lower_off));
+        return false;
+    }
+
+    // Raise layer
+    if (layer == 2) {
+        static const uint8_t PROGMEM raise_hues[][3] = {
+            // Row 0
+            {RC(0,0), HS_BLUE},     // `
+            {RC(0,1), HS_BLUE},     // 1
+            {RC(0,2), HS_BLUE},     // 2
+            {RC(0,3), HS_BLUE},     // 3
+            {RC(0,4), HS_BLUE},     // 4
+            {RC(0,5), HS_BLUE},     // 5
+            {RC(0,6), HS_BLUE},     // 6
+            {RC(0,7), HS_BLUE},     // 7
+            {RC(0,8), HS_BLUE},     // 8
+            {RC(0,9), HS_BLUE},     // 9
+            {RC(0,10), HS_BLUE},    // 0
+            {RC(0,11), HS_RED},     // Del
+            // Row 1
+            {RC(1,0), HS_ROSE},     // TD(4) NO [Double Tap: Caps Lock]
+            {RC(1,1), HS_EMERALD},  // Ctl-F1
+            {RC(1,2), HS_EMERALD},  // Ctl-F2
+            {RC(1,3), HS_EMERALD},  // Ctl-F3
+            {RC(1,4), HS_EMERALD},  // Ctl-F4
+            {RC(1,5), HS_EMERALD},  // Ctl-F5
+            {RC(1,6), HS_YELLOW},   // Left
+            {RC(1,7), HS_YELLOW},   // Down
+            {RC(1,8), HS_YELLOW},   // Up
+            {RC(1,9), HS_YELLOW},   // Right
+            {RC(1,10), HS_BLUE},    // -
+            {RC(1,11), HS_BLUE},    // =
+            // Row 2
+            {RC(2,0), HS_ROSE},     // TD(5) - Sft [Hold: Sft, Double Tap: Num Lock]
+            {RC(2,1), HS_EMERALD},  // Ctl-F6
+            {RC(2,2), HS_EMERALD},  // Ctl-F7
+            {RC(2,3), HS_EMERALD},  // Ctl-F8
+            {RC(2,4), HS_EMERALD},  // Ctl-F9
+            {RC(2,5), HS_EMERALD},  // Ctl-F10
+            {RC(2,6), HS_EMERALD},  // Ctl-F11
+            {RC(2,7), HS_EMERALD},  // Ctl-F12
+            {RC(2,8), HS_BLUE},     // [
+            {RC(2,9), HS_BLUE},     // ]
+            {RC(2,10), HS_BLUE},    // Reverse solidus
+            {RC(2,11), HS_ROSE},    // RS Enter
+            // Row 3
+            {RC(3,0), HS_ROSE},     // TD(6) - Ctl [Hold: Ctl, Double Tap: Scroll Lock]
+            {RC(3,1), HS_PURPLE},   // Menu [Hold: Gui]
+            {RC(3,2), HS_MAGENTA},  // Insert [Hold: Alt]
+            {RC(3,4), HS_ROSE},     // MO(3)
+            {RC(3,5), HS_EMERALD},  // Ctl-Sft-F12
+                                    // (3,6) is n/a for this 2U board
+            {RC(3,8), HS_PURPLE},   // Home
+            {RC(3,9), HS_ROSE},     // TD(0) [Tap/Hold: Mouse Wheel Down; Double Tap: Page Down]
+            {RC(3,10), HS_ROSE},    // TD(1) [Tap/Hold: Mouse Wheel Up; Double Tap: Page Up]
+            {RC(3,11), HS_PURPLE},  // Ctl [Tap: End]
+        };
+        static const uint8_t PROGMEM raise_off[] = {
+            RC(3,3),                // Inactive 'QMK' key
+            RC(3,7),                // Raise itself is currently held
+        };
+        apply_hsv_table(raise_hues, ARRAY_SIZE(raise_hues));
+        apply_off_table(raise_off, ARRAY_SIZE(raise_off));
+        return false;
+    }
+
+    // Numpad layer
+    if (layer == 4) {
+        static const uint8_t PROGMEM numpad_hues[][3] = {
+            // Row 0
+            {RC(0,0), HS_YELLOW},   // Tab
+            {RC(0,2), HS_YELLOW},   // Up
+            {RC(0,5), HS_ROSE},     // KP_SLASH
+            {RC(0,6), HS_CYAN},     // KP_7
+            {RC(0,7), HS_CYAN},     // KP_8
+            {RC(0,8), HS_CYAN},     // KP_9
+            {RC(0,9), HS_ROSE},     // KP_MINUS
+            {RC(0,11), HS_RED},     // Bksp
+            // Row 1
+            {RC(1,0), HS_GREEN},    // Esc
+            {RC(1,1), HS_YELLOW},   // Left
+            {RC(1,2), HS_YELLOW},   // Down
+            {RC(1,3), HS_YELLOW},   // Right
+            {RC(1,5), HS_LIME},     // KP_ASTERISK
+            {RC(1,6), HS_CYAN},     // KP_4
+            {RC(1,7), HS_CYAN},     // KP_5
+            {RC(1,8), HS_CYAN},     // KP_6
+            {RC(1,9), HS_LIME},     // KP_PLUS
+            {RC(1,11), HS_RED},     // Del
+            // Row 2
+            {RC(2,0), HS_ROSE},     // Sft [Tap: Num Lock]
+            {RC(2,5), HS_WHITE},    // KP_EQUAL
+            {RC(2,6), HS_CYAN},     // KP_1
+            {RC(2,7), HS_CYAN},     // KP_2
+            {RC(2,8), HS_CYAN},     // KP_3
+            {RC(2,9), HS_WHITE},    // KP_COMMA
+            {RC(2,11), HS_ROSE},    // RS Enter
+            // Row 3
+            {RC(3,0), HS_ROSE},     // Scroll Lock [Hold: Ctl]
+            {RC(3,3), HS_BLUE},     // TD(2) - TO(0) [Double Tap: TO(4); Hold: TO(5)]
+            {RC(3,5), HS_EMERALD},  // M0 (KP_0 KP_0)
+                                    // (3,6) is n/a for this 2U board
+            {RC(3,7), HS_EMERALD},  // KP_0
+            {RC(3,8), HS_EMERALD},  // KP_DOT
+            {RC(3,9), HS_ROSE},     // KP_ENTER
+            {RC(3,11), HS_ROSE},    // Ctrl
+        };
+        static const uint8_t PROGMEM numpad_off[] = {
+            RC(0,1),                // Unassigned / Separator
+            RC(0,3),                // Unassigned / Separator
+            RC(0,4),                // Unassigned / Separator
+            RC(0,10),               // Unassigned / Separator
+            RC(1,4),                // Unassigned / Separator
+            RC(1,10),               // Unassigned / Separator
+            RC(2,1),                // Unassigned / Separator
+            RC(2,2),                // Unassigned / Separator
+            RC(2,3),                // Unassigned / Separator
+            RC(2,4),                // Unassigned / Separator
+            RC(2,10),               // Unassigned / Separator
+            RC(3,1),                // Unassigned / Separator
+            RC(3,2),                // Unassigned / Separator
+            RC(3,4),                // Unassigned / Separator
+            RC(3,10),               // Unassigned / Separator
+        };
+        apply_hsv_table(numpad_hues, ARRAY_SIZE(numpad_hues));
+        apply_off_table(numpad_off, ARRAY_SIZE(numpad_off));
+        return false;
+    }
+
+    // Adjust layer
+    if (layer == 5) {
+        static const uint8_t PROGMEM extras_hues[][3] = {
+            // Row 0
+            {RC(0,10), HS_WHITE},   // Pause
+            {RC(0,11), HS_ORANGE},  // RGB Toggle
+            // Row 1
+            {RC(1,0), HS_GREEN},    // Escape
+            {RC(1,2), HS_WHITE},    // Print Screen
+            {RC(1,6), HS_PINK},     // Mouse Move Left
+            {RC(1,7), HS_PINK},     // Mouse Move Down
+            {RC(1,8), HS_PINK},     // Mouse Move Up
+            {RC(1,9), HS_PINK},     // Mouse Move Right
+            // Row 2
+            {RC(2,0), HS_ROSE},     // Shift
+            {RC(2,4), HS_CYAN},     // Vol+
+            {RC(2,5), HS_ORANGE},   // Bright+
+            {RC(2,6), HS_PINK},     // Mouse Button 3
+            {RC(2,7), HS_PINK},     // Mouse Button 2
+            {RC(2,11), HS_ROSE},    // RS Enter
+            // Row 3
+            {RC(3,0), HS_ROSE},     // Ctl
+            {RC(3,1), HS_PURPLE},   // Gui
+            {RC(3,2), HS_MAGENTA},  // Alt
+            {RC(3,3), HS_BLUE},     // TD(2) - TO(0) [Double Tap: TO(4); Hold: TO(5)]
+            {RC(3,5), HS_PINK},     // Mouse Button 1
+                                    // (3,6) is n/a for this 2U board
+            {RC(3,8), HS_ROSE},     // Mouse Wheel Left
+            {RC(3,9), HS_ROSE},     // TD(0) [Tap/Hold: Mouse Wheel Down; Double Tap: Page Down]
+            {RC(3,10), HS_ROSE},    // TD(1) [Tap/Hold: Mouse Wheel Up; Double Tap: Page Up]
+            {RC(3,11), HS_ROSE},    // Mouse Wheel Right
+        };
+        static const uint8_t PROGMEM extras_off[] = {
+            RC(0,0),   // Unassigned
+            RC(0,1),   // Unassigned
+            RC(0,2),   // Unassigned
+            RC(0,3),   // Unassigned
+            RC(0,4),   // Unassigned
+            RC(0,5),   // Unassigned
+            RC(0,6),   // Unassigned
+            RC(0,7),   // Unassigned
+            RC(0,8),   // Unassigned
+            RC(0,9),   // Unassigned
+            RC(1,1),   // Unassigned
+            RC(1,3),   // Unassigned
+            RC(1,4),   // Unassigned
+            RC(1,5),   // Unassigned
+            RC(1,10),  // Unassigned
+            RC(1,11),  // Unassigned
+            RC(2,1),   // Unassigned
+            RC(2,2),   // Unassigned
+            RC(2,3),   // Unassigned
+            RC(2,8),   // Unassigned
+            RC(2,9),   // Unassigned
+            RC(2,10),  // Unassigned
+            RC(3,4),   // Unassigned
+            RC(3,7),   // Unassigned
+        };
+        apply_hsv_table(extras_hues, ARRAY_SIZE(extras_hues));
+        apply_off_table(extras_off, ARRAY_SIZE(extras_off));
+        return false;
+    }
+
+    return true;
+}
+----
+
+[#filerev2keymapskennypeterulesmk]
+=== File: rev2/keymaps/kennypete/rules.mk
+
+This file is common to the `kennypete` BM40 and CSTC40 setups (except for
+`LTO_ENABLE`).
+
+[source,makefile]
+----
+AVR_USE_MINIMAL_PRINTF = yes
+COMBO_ENABLE = yes
+KEY_OVERRIDE_ENABLE = yes
+LTO_ENABLE = yes
+SPACE_CADET_ENABLE = yes
+TAP_DANCE_ENABLE = yes
+VIA_ENABLE = yes
+VIAL_ENABLE = yes
+VIALRGB_ENABLE = yes
+# Note: 
+# 1. VIAL_ENABLE requires VIA_ENABLE to be 'yes' (per Vial's own
+#    documentation).  VIA_ENABLE's own block in
+#    builddefs/common_features.mk then makes the following mandatory:
+#      BOOTMAGIC_ENABLE
+#      DYNAMIC_KEYMAP_ENABLE
+#      RAW_ENABLE
+#      TRI_LAYER_ENABLE
+#    Additionally:
+#      SEND_STRING_ENABLE is 'yes' too, via builddefs/generic_features.mk,
+#          though it is also indirectly 'yes' via DYNAMIC_KEYMAP_ENABLE's own
+#          separate block in common_features.mk.
+#      EPROM_ENABLE is 'yes' and compiled in by default because EEPROM_DRIVER
+#          defaults to 'vendor' and triggers OPT_DEFS += -DEEPROM_ENABLE.
+# ---------------------------------------------------------------------------
+# These are 'no' (many by default, but are listed here anyway):
+AUDIO_ENABLE = no
+AUTO_SHIFT_ENABLE = no
+CAPS_WORD_ENABLE = no
+COMMAND_ENABLE = no
+CONSOLE_ENABLE = no
+CUSTOM_MATRIX = no
+DYNAMIC_TAPPING_TERM_ENABLE = no
+GRAVE_ESC_ENABLE = no
+LAYER_LOCK_ENABLE = no
+LEADER_ENABLE = no
+MAGIC_ENABLE = no
+MIDI_ENABLE = no
+QMK_SETTINGS = no
+REPEAT_KEY_ENABLE = no
+RGBLIGHT_ENABLE = no
+UNICODEMAP_ENABLE = no
+UNICODE_COMMON = no
+UNICODE_ENABLE = no
+# Notes:
+# 1. These builddefs/generic_features.mk _ENABLE-able features are default
+#    'no'; most are n/a anyway: AUTOCORRECT, CONNECTION, CRC, DEFERRED_EXEC,
+#    DIGITIZER, DIP_SWITCH, DYNAMIC_MACRO, HAPTIC, KEYCODE_STRING, KEY_LOCK,
+#    MUSIC, OS_DETECTION, PROGRAMMABLE_BUTTON, SECURE, SEQUENCER, SWAP_HANDS,
+#    VIRTSER, and WPM.
+# 2. NKRO_ENABLE = no is delivered in keyboard.json.
+# 3. BLUETOOTH_ENABLE, NO_USB_STARTUP_CHECK, and SPLIT_KEYBOARD are
+#    all n/a for this non BT, USB, single unit board.
+# 4. DEBOUNCE_TYPE defaults to 'sym_defer_g' (builddefs/common_features.mk);
+#    and is not overridden here.
+# 5. BACKLIGHT_ENABLE is n/a given the per-key RGB Matrix.  Ironically, the
+#    brightness key override only works with BL_INC/BL_DEC as its trigger,
+#    despite this flag being off (see README for the documented anomaly).
+# 6. USB_WAIT_FOR_ENUMERATION has no compiled-in default.
+----
+
+[#filerev2keymapskennypetevialjson]
+=== File: rev2/keymaps/kennypete/vial.json
+
+This file is common to the `kennypete` BM40 and CSTC40 setups.
+
+[source,json]
+----
+{
+    "lighting": "vialrgb",
+    "matrix": {
+        "rows": 4,
+        "cols": 12
+    },
+    "layouts": {
+        "keymap": [
+            [ "0,0", "0,1", "0,2", "0,3", "0,4", "0,5", "0,6", "0,7", "0,8", "0,9", "0,10", "0,11" ],
+            [ "1,0", "1,1", "1,2", "1,3", "1,4", "1,5", "1,6", "1,7", "1,8", "1,9", "1,10", "1,11" ],
+            [ "2,0", "2,1", "2,2", "2,3", "2,4", "2,5", "2,6", "2,7", "2,8", "2,9", "2,10", "2,11" ],
+            [ "3,0", "3,1", "3,2", "3,3", "3,4", {"w": 2}, "3,5", "3,7", "3,8", "3,9", "3,10", "3,11" ]
+        ]
+    }
+}
+----
+
+[#compilationandflashing]
+== Compilation and flashing
+
+[#compilation]
+=== Compilation
+
+[source,shell-session]
+----
+[~/qmk_firmware] $ qmk clean && qmk compile -kb kprepublic/bm40hsrgb/rev2 -km kennypete
+Deleting .build/ ... done.
+Ψ Compiling keymap with make -r -R -f builddefs/build_keyboard.mk -s KEYBOARD=kprepublic/bm40hsrgb/rev2 KEYMAP=kennypete KEYBOARD_FILESAFE=kprepublic_bm40hsrgb_rev2 TARGET=kprepublic_bm40hsrgb_rev2_kennypete VERBOSE=false COLOR=true SILENT=false QMK_BIN="qmk"
+
+
+Generating: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/info_deps.d                          [OK]
+Generating: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/community_modules.c                  [OK]
+avr-gcc.exe (crosstool-NG 1.27.0.82_7f9d704 - qmk/qmk_toolchains @ a55a2b0) 15.2.0
+Copyright (C) 2025 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+Generating: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/community_modules.h                  [OK]
+Generating: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/community_modules_introspection.c    [OK]
+Generating: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/community_modules_introspection.h    [OK]
+Generating: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/led_matrix_community_modules.inc     [OK]
+Generating: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/rgb_matrix_community_modules.inc     [OK]
+Generating: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/info_config.h                        [OK]
+Generating: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/default_keyboard.c                   [OK]
+Generating: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/default_keyboard.h                   [OK]
+Compiling: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/community_modules.c                   [OK]
+Compiling: keyboards/kprepublic/bm40hsrgb/rev2/rev2.c                                               [OK]
+Compiling: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/src/default_keyboard.c                    [OK]
+Compiling: quantum/keymap_introspection.c                                                           [OK]
+Compiling: quantum/quantum.c                                                                        [OK]
+Compiling: quantum/bitwise.c                                                                        [OK]
+Compiling: quantum/led.c                                                                            [OK]
+Compiling: quantum/action.c                                                                         [OK]
+Compiling: quantum/action_layer.c                                                                   [OK]
+Compiling: quantum/action_tapping.c                                                                 [OK]
+Compiling: quantum/action_util.c                                                                    [OK]
+Compiling: quantum/eeconfig.c                                                                       [OK]
+Compiling: quantum/keyboard.c                                                                       [OK]
+Compiling: quantum/keymap_common.c                                                                  [OK]
+Compiling: quantum/keycode_config.c                                                                 [OK]
+Compiling: quantum/sync_timer.c                                                                     [OK]
+Compiling: quantum/logging/debug.c                                                                  [OK]
+Compiling: quantum/logging/sendchar.c                                                               [OK]
+Compiling: quantum/process_keycode/process_default_layer.c                                          [OK]
+Compiling: quantum/nvm/eeprom/nvm_eeconfig.c                                                        [OK]
+Compiling: quantum/matrix_common.c                                                                  [OK]
+Compiling: quantum/matrix.c                                                                         [OK]
+Compiling: quantum/debounce/sym_defer_g.c                                                           [OK]
+Compiling: quantum/main.c                                                                           [OK]
+Assembling: platforms/avr/xprintf.S                                                                 [OK]
+Compiling: platforms/avr/printf.c                                                                   [OK]
+Compiling: quantum/process_keycode/process_underglow.c                                              [OK]
+Compiling: quantum/process_keycode/process_rgb_matrix.c                                             [OK]
+Compiling: quantum/color.c                                                                          [OK]
+Compiling: quantum/rgb_matrix/rgb_matrix.c                                                          [OK]
+Compiling: quantum/rgb_matrix/rgb_matrix_drivers.c                                                  [OK]
+Compiling: drivers/led/issi/is31fl3733.c                                                            [OK]
+Compiling: quantum/led_tables.c                                                                     [OK]
+Compiling: quantum/raw_hid.c                                                                        [OK]
+Compiling: quantum/vial.c                                                                           [OK]
+Compiling: quantum/vialrgb.c                                                                        [OK]
+Compiling: lib/lib8tion/lib8tion.c                                                                  [OK]
+Compiling: quantum/bootmagic/bootmagic.c                                                            [OK]
+Compiling: quantum/process_keycode/process_combo.c                                                  [OK]
+Compiling: quantum/dynamic_keymap.c                                                                 [OK]
+Compiling: quantum/nvm/eeprom/nvm_dynamic_keymap.c                                                  [OK]
+Compiling: quantum/process_keycode/process_key_override.c                                           [OK]
+Compiling: quantum/mousekey.c                                                                       [OK]
+Compiling: quantum/send_string/send_string.c                                                        [OK]
+Compiling: quantum/process_keycode/process_space_cadet.c                                            [OK]
+Compiling: quantum/process_keycode/process_tap_dance.c                                              [OK]
+Compiling: quantum/process_keycode/process_tri_layer.c                                              [OK]
+Compiling: quantum/tri_layer.c                                                                      [OK]
+Compiling: quantum/via.c                                                                            [OK]
+Compiling: quantum/nvm/eeprom/nvm_via.c                                                             [OK]
+Compiling: tmk_core/protocol/host.c                                                                 [OK]
+Compiling: tmk_core/protocol/report.c                                                               [OK]
+Compiling: tmk_core/protocol/usb_device_state.c                                                     [OK]
+Compiling: tmk_core/protocol/usb_util.c                                                             [OK]
+Compiling: platforms/suspend.c                                                                      [OK]
+Compiling: platforms/synchronization_util.c                                                         [OK]
+Compiling: platforms/timer.c                                                                        [OK]
+Compiling: platforms/avr/hardware_id.c                                                              [OK]
+Compiling: platforms/avr/platform.c                                                                 [OK]
+Compiling: platforms/avr/suspend.c                                                                  [OK]
+Compiling: platforms/avr/timer.c                                                                    [OK]
+Compiling: platforms/avr/bootloaders/dfu.c                                                          [OK]
+Compiling: platforms/avr/drivers/i2c_master.c                                                       [OK]
+Archiving: .build/obj_kprepublic_bm40hsrgb_rev2_kennypete/i2c_master.o                              [OK]
+Compiling: tmk_core/protocol/lufa/lufa.c                                                            [OK]
+Compiling: tmk_core/protocol/usb_descriptor.c                                                       [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Class/Common/HIDParser.c                                       [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/AVR8/Device_AVR8.c                                        [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/AVR8/EndpointStream_AVR8.c                                [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/AVR8/Endpoint_AVR8.c                                      [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/AVR8/Host_AVR8.c                                          [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/AVR8/PipeStream_AVR8.c                                    [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/AVR8/Pipe_AVR8.c                                          [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/AVR8/USBController_AVR8.c                                 [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/AVR8/USBInterrupt_AVR8.c                                  [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/ConfigDescriptors.c                                       [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/DeviceStandardReq.c                                       [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/Events.c                                                  [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/HostStandardReq.c                                         [OK]
+Compiling: lib/lufa/LUFA/Drivers/USB/Core/USBTask.c                                                 [OK]
+Compiling: tmk_core/protocol/lufa/usb_util.c                                                        [OK]
+Linking: .build/kprepublic_bm40hsrgb_rev2_kennypete.elf                                             [OK]
+Creating load file for flashing: .build/kprepublic_bm40hsrgb_rev2_kennypete.hex                     [OK]
+Copying kprepublic_bm40hsrgb_rev2_kennypete.hex to qmk_firmware folder                              [OK]
+Checking file size of kprepublic_bm40hsrgb_rev2_kennypete.hex                                       [OK]
+ * The firmware size is fine - 26220/28672 (91%, 2452 bytes free)
+----
+
+[#flashing]
+=== Flashing
+
+[source,shell-session]
+----
+[~/qmk_firmware] $ qmk flash -kb kprepublic/bm40hsrgb/rev2 -km kennypete
+Ψ Compiling keymap with make -r -R -f builddefs/build_keyboard.mk -s flash KEYBOARD=kprepublic/bm40hsrgb/rev2 KEYMAP=kennypete KEYBOARD_FILESAFE=kprepublic_bm40hsrgb_rev2 TARGET=kprepublic_bm40hsrgb_rev2_kennypete VERBOSE=false COLOR=true SILENT=false QMK_BIN="qmk"
+
+
+avr-gcc.exe (crosstool-NG 1.27.0.82_7f9d704 - qmk/qmk_toolchains @ a55a2b0) 15.2.0
+Copyright (C) 2025 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+Size before:
+   text    data     bss     dec     hex filename
+      0   26220       0   26220    666c kprepublic_bm40hsrgb_rev2_kennypete.hex
+
+Compiling: quantum/via.c                                                                            [OK]
+Linking: .build/kprepublic_bm40hsrgb_rev2_kennypete.elf                                             [OK]
+Creating load file for flashing: .build/kprepublic_bm40hsrgb_rev2_kennypete.hex                     [OK]
+Copying kprepublic_bm40hsrgb_rev2_kennypete.hex to qmk_firmware folder                              [OK]
+Checking file size of kprepublic_bm40hsrgb_rev2_kennypete.hex                                       [OK]
+ * The firmware size is fine - 26220/28672 (91%, 2452 bytes free)
+Flashing for bootloader: atmel-dfu
+Bootloader Version: 0x00 (0)
+Checking memory from 0x0 to 0x6FFF...  Not blank at 0x1.
+Erasing flash...  Success
+Checking memory from 0x0 to 0x6FFF...  Empty.
+Checking memory from 0x0 to 0x667F...  Empty.
+0%                            100%  Programming 0x6680 bytes...
+[>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]  Success
+0%                            100%  Reading 0x7000 bytes...
+[>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]  Success
+Validating...  Success
+0x6680 bytes written into 0x7000 bytes memory (91.52%).
+----
+
+&#x00A0;
+
+~©~ ~2026~ ~Peter~ ~Kenny~ +
+~Redistribution~ ~and~ ~use~ ~in~ ~source~ ~(AsciiDoc)~ ~and~ ~'compiled'~
+~forms~ ~(HTML,~ ~PDF,~ ~EPUB~ ~and~ ~so~ ~forth)~ ~with~ ~or~ ~without~
+~modification,~ ~are~ ~permitted~ ~provided~ ~that~ ~the~ ~following~
+~conditions~ ~are~ ~met:~ +
+~Redistributions~ ~of~ ~source~ ~code~ ~(AsciiDoc)~ ~must~ ~retain~ ~the~
+~above~ ~copyright~ ~notice,~ ~this~ ~list~ ~of~ ~conditions~ ~and~ ~the~
+~following~ ~disclaimer~ ~as~ ~the~ ~first~ ~lines~ ~of~ ~this~ ~file~
+~unmodified.~ +
+~Redistributions~ ~in~ ~compiled~ ~form~ ~(Converted~ ~to~ ~PDF,~ ~EPUB~ ~and~
+~other~ ~formats)~ ~must~ ~reproduce~ ~the~ ~above~ ~copyright~ ~notice,~
+~this~ ~list~ ~of~ ~conditions~ ~and~ ~the~ ~following~ ~disclaimer~ ~in~ ~the~
+~documentation~ ~and/or~ ~other~ ~materials~ ~provided~ ~with~ ~the~
+~distribution.~ +
+~THIS~ ~DOCUMENTATION~ ~IS~ ~PROVIDED~ ~"AS~ ~IS"~ ~AND~ ~ANY~ ~EXPRESS~ ~OR~
+~IMPLIED~ ~WARRANTIES,~ ~INCLUDING,~ ~BUT~ ~NOT~ ~LIMITED~ ~TO,~ ~THE~
+~IMPLIED~ ~WARRANTIES~ ~OF~ ~MERCHANTABILITY~ ~AND~ ~FITNESS~ ~FOR~ ~A~
+~PARTICULAR~ ~PURPOSE~ ~ARE~ ~DISCLAIMED.~ ~IN~ ~NO~ ~EVENT~ ~SHALL~ ~I~ ~BE~
+~LIABLE~ ~FOR~ ~ANY~ ~DIRECT,~ ~INDIRECT,~ ~INCIDENTAL,~ ~SPECIAL,~
+~EXEMPLARY,~ ~OR~ ~CONSEQUENTIAL~ ~DAMAGES~ ~(INCLUDING,~ ~BUT~ ~NOT~ ~LIMITED~
+~TO,~ ~PROCUREMENT~ ~OF~ ~SUBSTITUTE~ ~GOODS~ ~OR~ ~SERVICES;~ ~LOSS~ ~OF~
+~USE,~ ~DATA,~ ~OR~ ~PROFITS;~ ~OR~ ~BUSINESS~ ~INTERRUPTION)~ ~HOWEVER~
+~CAUSED~ ~AND~ ~ON~ ~ANY~ ~THEORY~ ~OF~ ~LIABILITY,~ ~WHETHER~ ~IN~ ~CONTRACT,~
+~STRICT~ ~LIABILITY,~ ~OR~ ~TORT~ ~(INCLUDING~ ~NEGLIGENCE~ ~OR~ ~OTHERWISE)~
+~ARISING~ ~IN~ ~ANY~ ~WAY~ ~OUT~ ~OF~ ~THE~ ~USE~ ~OF~ ~THIS~ ~DOCUMENTATION,~
+~EVEN~ ~IF~ ~ADVISED~ ~OF~ ~THE~ ~POSSIBILITY~ ~OF~ ~SUCH~ ~DAMAGE.~
+
+//vim:tw=78:ts=8:noet:ft=asciidoc:norl:

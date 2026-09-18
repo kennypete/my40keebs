@@ -1,0 +1,30 @@
+= bm40hsrgb
+
+An ortholinear 40% hotswap keyboard with per-key RGB in-switch LEDs and RGB Backlighting, from KP Republic.
+
+== Bootloader
+
+There are two ways to enter the bootloader so that firmware can be flashed onto the keyboard:
+
+* **Bootmagic reset** (_easiest_): Hold down the key at (0,0) in the matrix (Tab) and plug in the keyboard
+* **Keycode in layout**: Press the keys mapped to `QK_BOOT` (0,4)+(3,4)+(3,7) in the matrix (Lower-Upper-R)
+
+NOTE: **Physical reset button**: A physical reset button (labeled 'RST') may also be on the back of the keyboard, though will not be available with some cases.
+
+== Flashing
+
+Once in the bootloader, `qmk flash -kb kprepublic/bm40hsrgb/rev2 -km kennypete` from QMK MSYS or whatever QMK app is being used.
+This is an interim state, with the keymap only partially complete (but suitable for basic tasks).
+
+== Vial
+
+Open Vial and load the desired `.vil` file with your final, desired layers, combos, key overrides, and tap dances.
+
+== keymap
+
+This is a significantly re-worked keymap:
+
+* enabling per-key RGB,
+* providing much more sane default (pre-Vial) layers, and
+* aligning with other `kennypete` 40% layouts and specific functionality choices.
+

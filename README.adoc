@@ -1,0 +1,206 @@
+:revdate: 2026-09-17
+:author: Peter Kenny
+// There is no actual :env-codeberg: but this gets close (it is like backend-html5 'bare')
+ifdef::backend-html5[]
+ifndef::docname[]
+:env-codeberg:
+endif::docname[]
+endif::backend-html5[]
+// Used for kbd (NB: Those don't render in Codeberg, which just outputs as inline code)
+:experimental:
+// ToC attributes default, with levels overridden later where applicable
+:toc: left
+:toclevels: 3
+:icons: font
+// Unicode characters to use for admonition captions except when going to PDF
+ifndef::backend-pdf[]
+:important-caption: ❗
+:tip-caption: 💡
+:note-caption: ℹ
+:caution-caption: 🔥
+:warning-caption: ⚠
+:white-check-mark: ✓
+endif::backend-pdf[]
+ifdef::backend-pdf[]
+:toclevels: 2
+endif::backend-pdf[]
+// Code highlighting
+:source-highlighter: rouge
+// Non-HTML5/non-GitHub only directives, including overrides
+ifndef::backend-html5,env-github[]
+:toc-title: Contents
+endif::[]
+// HTML5 and/or GitHub only directives, including overrides
+ifdef::backend-html5,env-github[]
+:toc-title:
+:toclevels: 1
+endif::[]
+// GitHub only directives (Note: Source highlighting is n/a for Codeberg)
+ifdef::env-github[]
+:rouge-style: github
+endif::[]
+// Autofit code blocks when going to PDF
+:autofit-option:
+
+= My 40&#x0025; keyboards
+
+I have several 40&#x0025; Planck-style keyboards with my preferred MIT layout.
+For a long time, my favourite was the (now discontinued) Planck&#x00A0;Ez.  It
+was my first 40&#x0025; keyboard and, aside from once having to solder a broken
+connection, is still going strong.
+
+// Blank line is needed in Codeberg
+ifdef::env-codeberg[&#x00A0; ]
+
+Over time, I bought and used other 40%s.  The only one I am no longer using is
+a Contra, which was my only foray into soldering a full board, which was not
+really for me.  It was good, until it died &#x2013; although I couldn’t be
+bothered with heaps of soldering it taught me a lot.  It also confirmed I
+dislike the Grid layout, never using the (3,5) key, so all my 40&#x0025;
+keyboards are MIT layout now (i.e., with a 2U spacebar).
+
+ifdef::env-codeberg[&#x00A0; ]
+
+In 2026, I bought a Chosfox Geonix Rev.2.5 and love its hardware and features.
+The combination of wireless (Bluetooth _and_ 2.4G enabled), Planck MIT, and low
+profile Kailh Choc V2 Deep sea silent tactile switches is near to perfect, IMO.
+
+ifdef::env-codeberg[&#x00A0; ]
+
+What acquiring the Geonix sparked was going back to my other keyboards, which
+had been set up in an only mostly-the-same layout, functionality, and so forth.
+For example, one of my KPRepublic BM40 keyboards, which I use in the office,
+did not have backlighting working (for a reason I cannot recall now).  Also, I
+had never looked into per-key RGB, which was one of the things I rate with the
+Planck Ez, where it is controlled with ZSA’s Oryx configurator.
+
+[#behaviourandfeaturesstandardisation]
+== Behaviours, features, and per-key RGB backlight standardisation
+
+I set off on a quest to create an almost identical setup across my current
+keyboards, which, in order of acquisition were:
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[cols="1,1"]
+|===
+|ZSA
+|https://web.archive.org/web/20221224091502/https://www.zsa.io/planck[Planck Ez]
+|KPRepublic
+|https://kprepublic.com/collections/bm40/products/bm40-rgb-40-hot-swap-custom-mechanical-keyboard-pcb-qmk-underglow-type-c-planck[BM40] rev2 (x2)
+|KPRepublic
+|https://kprepublic.com/products/cstc40-40-rgb-40-hot-swappable-mechanical-keyboard-pcb-programmed-qmk-via-vial-firmware-rgb-switch-underglow-type-c-planck[CSTC40] rev3
+|Chosfox
+|https://chosfox.com/products/chosfox-x-masro-geonix-rev-2-5[Geonix Rev.2.5]
+|===
+
+What was interesting was the number of redundant features and other things
+(inherently inert on some boards, stuff I do not use, and so forth) in the
+BM40, CSTC40, and Geonix QMK-Vial setups.  In a way that’s unsurprising.  Lots
+of things are often not looked at in detail, or at all, by developers or users.
+I certainly hadn’t.
+
+ifdef::env-codeberg[&#x00A0; ]
+
+Typically, I was content with launching Vial, setting the keymaps on a few
+layers to what I was used to, and moving on.  And that is fine to a point.  I
+found the core things like my base layer and most of the Lower and Raise layers
+I had no issue with, but the less used stuff was too haphazard, with slight
+differences, etc.  On reflection now, the convergence work here was a “rabbit
+hole”, though it was worthwhile because now any new board I acquire will have a
+much easier path to alignment with my preferences and congruity with my other
+40&#x0025; boards.
+
+ifdef::env-codeberg[&#x00A0; ]
+
+[NOTE]
+====
+A key consideration was ensuring that my _human_ memory is “backed up” with
+comprehensive documentation ... hence this repo.  Perhaps it will be of
+interest and/or use to others, though that isn’t its primary purpose.
+====
+
+[#boardsdocumentation]
+== Boards’ documentation
+
+Each board’s QMK-Vial setup is documented in detail, however, it is not
+intended to be a start-to-end read/novel!
+
+* *BM40 (rev2)*:
+ifndef::env-codeberg,env-github[xref:./bm40/README.adoc[KPRepublic BM40 Hotswap RGB rev2: QMK firmware and Vial setup]]
+ifdef::env-codeberg,env-github[link:./bm40/README.adoc[KPRepublic BM40 Hotswap RGB rev2: QMK firmware and Vial setup]]
+* *CSTC40 (rev3)*:
+ifndef::env-codeberg,env-github[xref:./cstc40/README.adoc[KPRepublic CSTC40 rev3: QMK firmware and Vial setup]]
+ifdef::env-codeberg,env-github[link:./cstc40/README.adoc[KPRepublic CSTC40 rev3: QMK firmware and Vial setup]]
+* *Geonix Rev.2.5*:
+ifndef::env-codeberg,env-github[xref:./geonix40/README.adoc[Chosfox Geonix Rev.2.5: QMK firmware and Vial setup]]
+ifdef::env-codeberg,env-github[link:./geonix40/README.adoc[Chosfox Geonix Rev.2.5: QMK firmware and Vial setup]]
+* *Planck Ez*: _Still being written up._
+
+[NOTE]
+====
+This is not simple stuff.  There are masses of interrelated dependencies,
+constraints, and nuances.  Ensuring I get up to speed again is the primary aim
+because usually I do not spend time in the keyboard setup space.  So, this is
+banking my short-term memory as much as anything else.
+====
+
+
+== Photos of layer 0
+
+Each board’s documentation has all its layers’ photos shown.  This is a
+’taster’ only, showing layer 0, the base layer.  It demonstrates the alignment
+of RGB backlighting, using “Direct Control” meaning the non-fixed colour keys
+are unlit (which is my preference, i.e., on this layer, all A-Z keys are
+muted).
+
+=== BM40
+
+image:https://i.postimg.cc/Hn82pmxQ/BM40-Layer0.jpg[Base,width=500]
+
+=== CSTC40
+
+image:https://i.postimg.cc/8kZbRZdW/CSTC40-0.jpg[Base,width=500]
+
+=== Geonix Rev.2.5
+
+image:https://i.postimg.cc/k4K8Df1B/Geonix-BL0.jpg[Base,width=500]
+
+=== Vial
+
+This is my common Vial keymap layout for layer 0:
+
+ifdef::env-codeberg[&#x00A0; ]
+
+image:https://i.postimg.cc/Znb1H2h4/all-layer0.jpg[Vial_L0,width=500]
+
+&#x00A0;
+
+~©~ ~2026~ ~Peter~ ~Kenny~ +
+~Redistribution~ ~and~ ~use~ ~in~ ~source~ ~(AsciiDoc)~ ~and~ ~'compiled'~
+~forms~ ~(HTML,~ ~PDF,~ ~EPUB~ ~and~ ~so~ ~forth)~ ~with~ ~or~ ~without~
+~modification,~ ~are~ ~permitted~ ~provided~ ~that~ ~the~ ~following~
+~conditions~ ~are~ ~met:~ +
+~Redistributions~ ~of~ ~source~ ~code~ ~(AsciiDoc)~ ~must~ ~retain~ ~the~
+~above~ ~copyright~ ~notice,~ ~this~ ~list~ ~of~ ~conditions~ ~and~ ~the~
+~following~ ~disclaimer~ ~as~ ~the~ ~first~ ~lines~ ~of~ ~this~ ~file~
+~unmodified.~ +
+~Redistributions~ ~in~ ~compiled~ ~form~ ~(Converted~ ~to~ ~PDF,~ ~EPUB~ ~and~
+~other~ ~formats)~ ~must~ ~reproduce~ ~the~ ~above~ ~copyright~ ~notice,~
+~this~ ~list~ ~of~ ~conditions~ ~and~ ~the~ ~following~ ~disclaimer~ ~in~ ~the~
+~documentation~ ~and/or~ ~other~ ~materials~ ~provided~ ~with~ ~the~
+~distribution.~ +
+~THIS~ ~DOCUMENTATION~ ~IS~ ~PROVIDED~ ~"AS~ ~IS"~ ~AND~ ~ANY~ ~EXPRESS~ ~OR~
+~IMPLIED~ ~WARRANTIES,~ ~INCLUDING,~ ~BUT~ ~NOT~ ~LIMITED~ ~TO,~ ~THE~
+~IMPLIED~ ~WARRANTIES~ ~OF~ ~MERCHANTABILITY~ ~AND~ ~FITNESS~ ~FOR~ ~A~
+~PARTICULAR~ ~PURPOSE~ ~ARE~ ~DISCLAIMED.~ ~IN~ ~NO~ ~EVENT~ ~SHALL~ ~I~ ~BE~
+~LIABLE~ ~FOR~ ~ANY~ ~DIRECT,~ ~INDIRECT,~ ~INCIDENTAL,~ ~SPECIAL,~
+~EXEMPLARY,~ ~OR~ ~CONSEQUENTIAL~ ~DAMAGES~ ~(INCLUDING,~ ~BUT~ ~NOT~ ~LIMITED~
+~TO,~ ~PROCUREMENT~ ~OF~ ~SUBSTITUTE~ ~GOODS~ ~OR~ ~SERVICES;~ ~LOSS~ ~OF~
+~USE,~ ~DATA,~ ~OR~ ~PROFITS;~ ~OR~ ~BUSINESS~ ~INTERRUPTION)~ ~HOWEVER~
+~CAUSED~ ~AND~ ~ON~ ~ANY~ ~THEORY~ ~OF~ ~LIABILITY,~ ~WHETHER~ ~IN~ ~CONTRACT,~
+~STRICT~ ~LIABILITY,~ ~OR~ ~TORT~ ~(INCLUDING~ ~NEGLIGENCE~ ~OR~ ~OTHERWISE)~
+~ARISING~ ~IN~ ~ANY~ ~WAY~ ~OUT~ ~OF~ ~THE~ ~USE~ ~OF~ ~THIS~ ~DOCUMENTATION,~
+~EVEN~ ~IF~ ~ADVISED~ ~OF~ ~THE~ ~POSSIBILITY~ ~OF~ ~SUCH~ ~DAMAGE.~
+
+//vim:tw=78:ts=8:noet:ft=asciidoc:norl:

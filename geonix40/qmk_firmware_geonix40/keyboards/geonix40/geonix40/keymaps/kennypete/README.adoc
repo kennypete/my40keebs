@@ -1,0 +1,34 @@
+= Chosfox Geonix Rev.2.5 - kennypete keymap
+
+== Bootloader
+
+There are two ways to enter the bootloader so that firmware can be flashed
+onto the keyboard:
+
+* Enter the bootloader by holding down the key at (0,0) in the matrix and
+then plug in the keyboard, or
+* **Keycode in layout**: Press the keys mapped to `QK_BOOT` (0,4)+(3,5)+(3,7)
+in the matrix (Lower-Upper-R) [NB: (3,1) is n/a on this matrix]
+
+== Flashing
+
+Once in the bootloader, the `.bin` file produced by `qmk compile` copied
+to the “drive” that appears will flash the updated firmware to the keyboard.
+This is an interim state, with the keymap only partially complete (though it
+is suitable for basic tasks).
+
+== Vial
+
+Open Vial and load the desired `.vil` file with your final, desired
+layers, combos, key overrides, and tap dances.
+
+== kennypete keymap
+
+This is a significantly re-worked keymap, which:
+
+* Enables per-key RGB,
+* Re-designs the adapter selection and indicators functionality,
+* Re-design battery level presentation,
+* Provides saner default (pre-Vial) layers, and
+* Aligns with other `kennypete` 40% layouts and functionality choices.
+
