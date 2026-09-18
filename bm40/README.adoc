@@ -148,11 +148,13 @@ ifdef::env-codeberg[&#x00A0; ]
 Fortunately, I do not use/want several features, which are inherently included
 in the stock build, and which collectively “free” around 3 kB:
 
-* CAPS_WORD_ENABLE
-* GRAVE_ESC_ENABLE
-* LAYER_LOCK_ENABLE
-* MAGIC_ENABLE
-* REPEAT_KEY_ENABLE
+----
+CAPS_WORD_ENABLE
+GRAVE_ESC_ENABLE
+LAYER_LOCK_ENABLE
+MAGIC_ENABLE
+REPEAT_KEY_ENABLE
+----
 
 Those are discussed in detail at
 <<keymapskennypeterulesmkamendments,keymaps/kennypete/rules.mk amendments>>.

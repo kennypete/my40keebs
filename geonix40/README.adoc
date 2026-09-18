@@ -269,15 +269,17 @@ ifdef::env-codeberg[&#x00A0; ]
 NOTE: `NKRO_ENABLE` appearing here does not mean NKRO is
 active.footnote:[The vendor's precompiled `librdrcommon.a` requires `NKRO_ENABLE` to be compiled in regardless, which is explained under the `keyboard.json` amendment, below.  It is enabled here only to satisfy that dependency.  The actual boot-time default is 6KRO, matching my other boards, via the `host.default.nkro` setting in `keyboard.json`.]
 
-Fortunately, I do not use/want several features included in the stock build,
-and which are actively set to “no” for all my `kennypete` setups:
+I do not use/want several features included in the stock build, and which are
+actively set to “no” for all my `kennypete` setups:
 
-* AUTO_SHIFT_ENABLE
-* CAPS_WORD_ENABLE
-* GRAVE_ESC_ENABLE
-* LAYER_LOCK_ENABLE
-* MAGIC_ENABLE
-* REPEAT_KEY_ENABLE
+----
+AUTO_SHIFT_ENABLE
+CAPS_WORD_ENABLE
+GRAVE_ESC_ENABLE
+LAYER_LOCK_ENABLE
+MAGIC_ENABLE
+REPEAT_KEY_ENABLE
+----
 
 Some of the retained settings are mandatory, though:
 
@@ -673,8 +675,6 @@ BM40/CSTC40, but, further, this layer's *entire* rendering path bypasses the
 normal brightness-scaling logic per the `rgb_layer3_always_on` mechanism
 already covered above.  That makes sense because the point of the source
 indicators and battery level indicator is **to be visible**!
-+
-ifdef::env-codeberg[&#x00A0; ]
 +
 NOTE: The final presentation of this RGB per-key setup is shown in the six
 photos at <<keyboardphotos,Keyboard photos>>.
